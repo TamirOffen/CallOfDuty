@@ -1,0 +1,6 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mongo_container 
+    ports:
+      - "27017:27017"
