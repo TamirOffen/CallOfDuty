@@ -4,7 +4,7 @@ import { createFastifyApp } from "./app.js";
 describe("Health check endpoints", () => {
 	let fastify;
 	
-	beforeAll(() => {
+	beforeAll(async () => {
 		fastify = createFastifyApp();
 	});
 

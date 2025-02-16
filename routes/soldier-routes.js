@@ -11,7 +11,7 @@ export async function soldier_routes (fastify, options) {
             await fastify.mongo.db.collection('soldiers').insertOne(newSoldier);
             return reply.code(201).send(newSoldier);
         } catch(err) {
-            console.error(`Error occured when trying to add soldier to db: ${err}`);
+            fastify.log.error(`Error occured when trying to add soldier to db: ${err}`);
         }
 
     });

@@ -14,14 +14,7 @@ function createSoldier(_id, name, rankValue, rankName, limitations) {
         rankName = rankMap[rankValue]
     } else if (rankName !== undefined && rankValue === undefined) {
         const rankValueFromName = Object.keys(rankMap).find((key) => rankMap[key] == rankName);
-        if (rankValueFromName === undefined) {
-            // TODO error: invalid rankName
-        }
         rankValue = parseInt(rankValueFromName);
-    } else if (rankValue !== undefined && rankName !== undefined) {
-        if (rankMap[rankValue] !== rankName) {
-            // TODO error: mismatch between rankName and rankValue
-        }
     } else { // both rankName and rankValue are undef.
         // TODO error: need to fill in rankName or rankValue
     }
