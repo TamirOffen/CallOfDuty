@@ -1,11 +1,15 @@
-import { describe, it, expect, beforeAll, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, vi, beforeEach, afterAll } from 'vitest';
 import { createFastifyApp } from './app.js';
-import { MongoClient } from '@fastify/mongodb';
 
 describe("Add Soldier", () => {
     let fastify;
+
     beforeAll(async () => {
         fastify = await createFastifyApp();
+    });
+
+    afterAll(async () => {
+        await fastify.mongo.db.collection("soldiers").drop().catch();
     });
 
     beforeEach(async () => {
@@ -185,11 +189,16 @@ describe("Add Soldier", () => {
 
 });
 
+
 describe("Getting a soldier by ID", () => {
     let fastify;
     beforeAll(async () => {
         fastify = createFastifyApp();
         await fastify.listen();
+    });
+
+    afterAll(async () => {
+        await fastify.mongo.db.collection("soldiers").drop().catch();
     });
 
     beforeEach(async () => {
@@ -283,9 +292,101 @@ describe("Getting a soldier by ID", () => {
         });
         expect(response4.statusCode).toBe(404);
 
-    })
+    });
     
+});
+
+describe("Deleting a soldier by ID", () => {
+    let fastify;
+    beforeAll(async () => {
+        fastify = createFastifyApp();
+        await fastify.listen();
+    });
+
+    afterAll(async () => {
+        await fastify.mongo.db.collection("soldiers").drop().catch();
+    });
+
+    beforeEach(async () => {
+        await fastify.mongo.db.collection("soldiers").drop().catch();
+    });
+
+    it("DELETE /soldier/:id should return status 204 if soldier is found", async () => {
+        const new_soldierA = {
+            _id: "1234567",
+            name: "Soldier A",
+            rankValue: 6,
+            limitations: ["cannot run"]
+        }
+        const new_soldierB = {
+            _id: "7654321",
+            name: "Soldier B",
+            rankValue: 4,
+            limitations: ["cannot lift more than 20kg"]
+        }
+
+        const response1 = await fastify.inject({
+            method: 'POST',
+            url: '/soldiers',
+            payload: new_soldierA
+        });
+        expect(response1.statusCode).toBe(201);
+        const response2 = await fastify.inject({
+            method: 'POST',
+            url: '/soldiers',
+            payload: new_soldierB
+        });
+        expect(response2.statusCode).toBe(201);
+
+        const response_delA = await fastify.inject({
+            method: 'DELETE',
+            url: '/soldiers/1234567'
+        });
+        expect(response_delA.statusCode).toBe(204);
+
+        const response_delB = await fastify.inject({
+            method: 'DELETE',
+            url: '/soldiers/7654321'
+        });
+        expect(response_delB.statusCode).toBe(204);
+
+    })
+
+    it("DELETE /soldier/:id should return status 404 if soldier is not found", async () => {
+        const new_soldierA = {
+            _id: "1234567",
+            name: "Soldier A",
+            rankValue: 6,
+            limitations: ["cannot run"]
+        }
+        const new_soldierB = {
+            _id: "7654321",
+            name: "Soldier B",
+            rankValue: 4,
+            limitations: ["cannot lift more than 20kg"]
+        }
+
+        const response1 = await fastify.inject({
+            method: 'POST',
+            url: '/soldiers',
+            payload: new_soldierA
+        });
+        expect(response1.statusCode).toBe(201);
+        const response2 = await fastify.inject({
+            method: 'POST',
+            url: '/soldiers',
+            payload: new_soldierB
+        });
+        expect(response2.statusCode).toBe(201);
+
+        const response_del = await fastify.inject({
+            method: 'DELETE',
+            url: '/soldiers/4562876'
+        });
+        expect(response_del.statusCode).toBe(404);
+    });
 
 });
+
 
 
