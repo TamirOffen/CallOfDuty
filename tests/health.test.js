@@ -3,9 +3,8 @@ import { createFastifyApp } from "./app.js";
 
 describe("Health check endpoints", () => {
 	let fastify;
-	
 	beforeAll(async () => {
-		fastify = createFastifyApp();
+		fastify = await createFastifyApp();
 	});
 
 	it("GET /health should return status 200 with ok", async () => {
