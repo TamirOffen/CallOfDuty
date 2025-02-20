@@ -1,0 +1,35 @@
+{
+	"name": "call-of-duty",
+	"version": "1.0.0",
+	"type": "module",
+	"description": "hafifa project",
+	"main": "server.js",
+	"scripts": {
+		"test": "npm run db:local && vitest",
+		"coverage": "vitest run --coverage",
+		"lint": "biome check --write .",
+		"start": "npm run db:local && node --env-file .env server.js | pino-pretty",
+		"dev": "npm run db:local && node --env-file .env --watch server.js | pino-pretty",
+		"db:local": "docker compose up -d mongo"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/TamirOffen/CallOfDuty.git"
+	},
+	"author": "",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/TamirOffen/CallOfDuty/issues"
+	},
+	"homepage": "https://github.com/TamirOffen/CallOfDuty#readme",
+	"dependencies": {
+		"@fastify/mongodb": "^9.0.2",
+		"fastify": "^5.2.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@vitest/coverage-v8": "^3.0.5",
+		"pino-pretty": "^13.0.0",
+		"vitest": "^3.0.5"
+	}
+}
