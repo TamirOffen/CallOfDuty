@@ -1,0 +1,8 @@
+{
+    "_id": "1234567",
+    "name": "Bob Dylan",
+    "rankValue": 3,
+    "limitations": [
+        "food"
+    ]
+}

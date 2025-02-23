@@ -74,4 +74,26 @@ const patchSoldierSchema = {
 	},
 };
 
-export { createSoldierSchema, soldierSearchSchema, patchSoldierSchema };
+const soldiersQuerySchema = {
+	type: "object",
+	properties: {
+		name: { type: "string", minLength: 3, maxLength: 50 },
+		rankValue: { type: "integer", minimum: 0, maximum: 6 },
+		rankName: {
+			type: "string",
+			enum: [
+				"private",
+				"corporal",
+				"sergeant",
+				"lieutenant",
+				"captain",
+				"major",
+				"colonel",
+			],
+		},
+		limitations: { type: "array", items: { type: "string" } },
+	},
+	additionalProperties: false,
+};
+
+export { createSoldierSchema, soldierSearchSchema, patchSoldierSchema, soldiersQuerySchema };

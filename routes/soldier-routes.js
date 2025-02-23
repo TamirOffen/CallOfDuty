@@ -3,6 +3,7 @@ import {
 	createSoldierSchema,
 	patchSoldierSchema,
 	soldierSearchSchema,
+	soldiersQuerySchema,
 } from "../schemas/soldier-schemas.js";
 
 export async function soldier_routes(fastify, options) {
@@ -47,6 +48,30 @@ export async function soldier_routes(fastify, options) {
 		},
 	);
 
+	fastify.get(
+		"/",
+		{
+			schema: {
+				querystring: soldiersQuerySchema,
+			},
+		},
+		async (request, reply) => {
+			const { name, limitations, rankValue, rankName } = request.query;
+			const filter = {};
+			if (name) {
+				filter.name = name;
+			}
+			if (limitations && limitations.length > 0) {
+				filter.limitations = { $all: limitations[0].split(',') };
+			}
+			if (rankValue || rankName) {
+				filter.rank = getSoldierRankAndName(rankName, rankValue);
+			}
+			const query_result = await fastify.mongo.db.collection("soldiers").find(filter).toArray();
+			return reply.status(200).send(query_result);
+		},
+	);
+
 	fastify.delete(
 		"/:id",
 		{ schema: { params: soldierSearchSchema } },
@@ -73,6 +98,9 @@ export async function soldier_routes(fastify, options) {
 			const { id } = request.params;
 			const body = request.body;
 			const updatedSoldierData = {};
+			if (body.name) {
+				updatedSoldierData.name = body.name;
+			}
 			if (body.limitations) {
 				updatedSoldierData.limitations = body.limitations.map((limit) =>
 					limit.toLowerCase(),
