@@ -4,6 +4,7 @@ import {
 	patchSoldierSchema,
 	soldierSearchSchema,
 	soldiersQuerySchema,
+	soldierLimitationsSchema,
 } from "../schemas/soldier-schemas.js";
 
 export async function soldier_routes(fastify, options) {
@@ -129,4 +130,28 @@ export async function soldier_routes(fastify, options) {
 			return result;
 		},
 	);
+
+	fastify.put(
+		'/:id/limitations',
+		{ schema: soldierLimitationsSchema },
+		async (request, reply) => {
+			const { id } = request.params;
+			const body = request.body;
+			const result = await fastify.mongo.db
+				.collection("soldiers")
+				.findOneAndUpdate(
+					{ _id: id },
+					{ $push: {limitations: { $each: body } }, $currentDate: { updatedAt: true } },
+					{ returnDocument: "after" } 
+				);
+			if (!result) {
+				return reply
+					.status(404)
+					.send({ message: `Soldier with ID ${id} not found or no changes made` });
+			}
+			reply.status(200);
+			return result;
+		},
+	);
+
 }

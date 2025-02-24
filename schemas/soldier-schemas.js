@@ -96,4 +96,14 @@ const soldiersQuerySchema = {
 	additionalProperties: false,
 };
 
-export { createSoldierSchema, soldierSearchSchema, patchSoldierSchema, soldiersQuerySchema };
+const soldierLimitationsSchema = {
+	params: soldierSearchSchema,
+	body: {
+		type: "array",
+		items: {
+			type: "string"
+		},
+	}
+};
+
+export { createSoldierSchema, soldierSearchSchema, patchSoldierSchema, soldiersQuerySchema, soldierLimitationsSchema };
