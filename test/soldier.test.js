@@ -1,10 +1,10 @@
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
 import { generateTestSoldier } from "./data-factory.js";
 import { getSoldierRank } from "../src/models/soldier.js";
 
 describe("Test Soldier Routes", () => {
-	describe("POST /soldiers to add a soldier to DB", () => {
+	describe("POST /soldiers", () => {
 		let fastify;
 
 		beforeAll(async () => {
@@ -123,6 +123,46 @@ describe("Test Soldier Routes", () => {
 
 			expect(response1.statusCode).toBe(201);
 			expect(response2.statusCode).toBe(500);
+		});
+	});
+
+	describe("GET /soldiers/:id", () => {
+		let fastify;
+		beforeAll(async () => {
+			fastify = await createFastifyApp();
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "1234567", name: "Bob" }),
+			});
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "9876543" }),
+			});
+		});
+
+		afterAll(async () => {
+			await fastify.mongo.db.collection("soldiers").drop();
+		});
+
+		it("Should return the soldier by id and status 200", async () => {
+			const bobResponse = await fastify.inject({
+				method: "GET",
+				url: "/soldiers/1234567",
+			});
+			expect(bobResponse.statusCode).toBe(200);
+			const returnedBob = bobResponse.json();
+			expect(returnedBob._id).toBe("1234567");
+			expect(returnedBob.name).toBe("Bob");
+		});
+
+		it("Should return status 404 when soldier is not found", async () => {
+			const response = await fastify.inject({
+				method: "GET",
+				url: "/soldiers/8568742",
+			});
+			expect(response.statusCode).toBe(404);
 		});
 	});
 });

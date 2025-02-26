@@ -11,6 +11,13 @@ const rankSchema = {
 	required: ["name", "value"],
 };
 
+const messageSchema = {
+	type: "object",
+	properties: {
+		message: { type: "string" },
+	},
+};
+
 const soldierSchema = {
 	type: "object",
 	properties: {
@@ -50,25 +57,18 @@ const postSoldierSchema = {
 	},
 };
 
-const responseSchema = {
-	201: {
-		soldierSchema,
-	},
-	200: {
-		soldierSchema,
-	},
-	404: {
+const getSoldierByIDSchema = {
+	params: {
 		type: "object",
 		properties: {
-			message: { type: "string" },
+			id: _idSchema,
 		},
+		required: ["id"],
 	},
-	204: {
-		type: "object",
-		properties: {
-			message: { type: "string" },
-		},
+	response: {
+		200: soldierSchema,
+		404: messageSchema,
 	},
 };
 
-export { postSoldierSchema, responseSchema };
+export { postSoldierSchema, getSoldierByIDSchema };
