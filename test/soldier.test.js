@@ -208,8 +208,99 @@ describe("Test Soldier Routes", () => {
 				method: "DELETE",
 				url: "/soldiers/4562876",
 			});
-			
+
 			expect(responseDel.statusCode).toBe(404);
+		});
+	});
+
+	describe("PATCH /soldiers/:id", () => {
+		let fastify;
+		beforeAll(async () => {
+			fastify = await createFastifyApp();
+		});
+		afterAll(async () => {
+			await fastify.mongo.db.collection("soldiers").drop().catch();
+		});
+
+		it("Should return updated soldier with status 200", async () => {
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ name: "Bob", _id: "1234567" }),
+			});
+
+			const updateToSoldier = {
+				name: "Robert Zimmerman",
+				rankName: "major",
+				limitations: ["has to sleep atleast 7 hours per day"],
+			};
+
+			const updateSoldierResponse = await fastify.inject({
+				method: "PATCH",
+				url: "/soldiers/1234567",
+				payload: updateToSoldier,
+			});
+			const updatedSoldier = updateSoldierResponse.json();
+
+			expect(updateSoldierResponse.statusCode).toBe(200);
+			expect(updatedSoldier.name).toBe("Robert Zimmerman");
+			expect(updatedSoldier.rank).toStrictEqual({ name: "major", value: 5 });
+			expect(updatedSoldier.limitations[0]).toBe("has to sleep atleast 7 hours per day");
+			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
+		});
+
+		it("Update with unwanted properties should be igored", async () => {
+			const updateToSoldier = {
+				_id: "4567892",
+				name: "Robert Zimmerman",
+				rankName: "major",
+				limitations: ["has to sleep atleast 7 hours per day"],
+				fathers_name: "Abram Zimmerman",
+			};
+
+			const updateSoldierResponse = await fastify.inject({
+				method: "PATCH",
+				url: "/soldiers/1234567",
+				payload: updateToSoldier,
+			});
+			const updatedSoldier = updateSoldierResponse.json();
+
+			expect(updateSoldierResponse.statusCode).toBe(200);
+			expect(updatedSoldier.name).toBe("Robert Zimmerman");
+			expect(updatedSoldier.rank).toStrictEqual({ name: "major", value: 5 });
+			expect(updatedSoldier.limitations[0]).toBe("has to sleep atleast 7 hours per day");
+			expect(updatedSoldier._id).toBe("1234567");
+			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
+			expect(updatedSoldier).not.toHaveProperty("fathers_name");
+		});
+
+		it("Should reject with status 404 if id is not found ", async () => {
+			const updateToSoldier = {
+				name: "Robert Zimmerman",
+			};
+
+			const updateSoldierResponse = await fastify.inject({
+				method: "PATCH",
+				url: "/soldiers/9874563",
+				payload: updateToSoldier,
+			});
+
+			expect(updateSoldierResponse.statusCode).toBe(404);
+		});
+
+		it("Should reject with status 400 if both rankValue and rankName are present", async () => {
+			const updateToSoldier = {
+				rankName: "major",
+				rankValue: 5,
+			};
+
+			const updateSoldierResponse = await fastify.inject({
+				method: "PATCH",
+				url: "/soldiers/1234567",
+				payload: updateToSoldier,
+			});
+
+			expect(updateSoldierResponse.statusCode).toBe(400);
 		});
 	});
 
@@ -223,13 +314,13 @@ describe("Test Soldier Routes", () => {
 				url: "/soldiers",
 				payload: generateTestSoldier({ name: "Bob", _id: "1346792", limitations: ["food"] }),
 			});
-			
+
 			await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
 				payload: generateTestSoldier({ name: "David", _id: "1234567", limitations: ["standing"] }),
 			});
-				
+
 			await fastify.inject({
 				method: "POST",
 				url: "/soldiers",

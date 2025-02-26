@@ -62,6 +62,36 @@ const postSoldierSchema = {
 	},
 };
 
+const patchSoldierSchema = {
+	params: {
+		type: "object",
+		properties: {
+			id: _idSchema,
+		},
+		required: ["id"],
+	},
+	body: {
+		type: "object",
+		properties: {
+			name: nameSchema,
+			rankValue: rankValueSchema,
+			rankName: rankNameSchema,
+			limitations: limitationsSchema,
+		},
+		anyOf: [
+			{ required: ["rankValue"], not: { required: ["rankName"] } },
+			{ required: ["rankName"], not: { required: ["rankValue"] } },
+			{ required: ["name"] },
+			{ required: ["limitations"] },
+		],
+		additionalProperties: false,
+	},
+	response: {
+		200: soldierSchema,
+		404: messageSchema,
+	},
+};
+
 const getSoldierByIDSchema = {
 	params: {
 		type: "object",
@@ -69,7 +99,6 @@ const getSoldierByIDSchema = {
 			id: _idSchema,
 		},
 		required: ["id"],
-		additionalProperties: false,
 	},
 	response: {
 		200: soldierSchema,
@@ -84,7 +113,7 @@ const getSoldierByQuerySchema = {
 			name: nameSchema,
 			rankValue: rankValueSchema,
 			rankName: rankNameSchema,
-			limitations: limitationsSchema,
+			limitations: { type: "string", minLength: 1 },
 		},
 		additionalProperties: false,
 	},
@@ -103,7 +132,6 @@ const deleteSoldierSchema = {
 			id: _idSchema,
 		},
 		required: ["id"],
-		additionalProperties: false,
 	},
 	response: {
 		204: messageSchema,
@@ -111,4 +139,10 @@ const deleteSoldierSchema = {
 	},
 };
 
-export { postSoldierSchema, getSoldierByIDSchema, getSoldierByQuerySchema, deleteSoldierSchema };
+export {
+	postSoldierSchema,
+	getSoldierByIDSchema,
+	getSoldierByQuerySchema,
+	deleteSoldierSchema,
+	patchSoldierSchema,
+};

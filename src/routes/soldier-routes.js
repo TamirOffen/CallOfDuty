@@ -3,6 +3,7 @@ import {
 	deleteSoldierSchema,
 	getSoldierByIDSchema,
 	getSoldierByQuerySchema,
+	patchSoldierSchema,
 	postSoldierSchema,
 } from "../schemas/soldier-schemas.js";
 
@@ -32,8 +33,8 @@ export async function soldierRoutes(fastify) {
 		const { name, limitations, rankValue, rankName } = request.query;
 		const filter = {
 			...(name && { name }),
-			...(limitations?.length > 0 && { limitations: { $all: limitations[0].split(",") } }),
-			...((rankValue || rankName) && { rank: getSoldierRank(rankName, rankValue) }),
+			...(limitations?.length > 0 && { limitations: { $all: limitations.split(",") } }),
+			...((rankValue ?? rankName) && { rank: getSoldierRank(rankName, rankValue) }),
 		};
 		fastify.log.info({ filter }, 'Searching for soldiers by query');
 		const soldiers = Object.keys(filter).length > 0
@@ -53,6 +54,34 @@ export async function soldierRoutes(fastify) {
 		}
 		fastify.log.info({ id }, 'Soldier deleted');
 
-		return reply.status(204).send({ message: `Soldier with ID ${id} deleted succesfully` });
+		return reply.status(204).send({ message: `Soldier with id=${id} deleted succesfully` });
+	});
+
+	fastify.patch("/:id", { schema: patchSoldierSchema }, async (request, reply) => {
+		const { id } = request.params;
+		const { name, limitations, rankValue, rankName } = request.body;
+		const updateToSoldier = {
+			...(name && { name }),
+			...(limitations?.length > 0 && {
+				limitations: limitations.map((limit) => limit.toLowerCase()),
+			}),
+			...((rankValue ?? rankName) && { rank: getSoldierRank(rankName, rankValue) }),
+		};
+		fastify.log.info({ updateToSoldier }, 'Update to soldier');
+
+		const updatedSoldier = await fastify.mongo.db
+			.collection("soldiers")
+			.findOneAndUpdate(
+				{ _id: id },
+				{ $set: updateToSoldier, $currentDate: { updatedAt: true } },
+				{ returnDocument: "after" },
+			);
+		if (!updatedSoldier) {
+			fastify.log.info({ id }, 'Soldier not found!');
+			return reply.status(404).send({ message: `Soldier not found with id=${id}` });
+		}
+		fastify.log.info({ updatedSoldier }, 'Soldier updated');
+
+		return reply.status(200).send(updatedSoldier);
 	});
 }
