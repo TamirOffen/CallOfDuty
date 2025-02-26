@@ -1,6 +1,14 @@
+import { rankNames } from "../models/soldier.js";
+
 const _idSchema = { type: "string", pattern: "^[0-9]{7}$" };
 const nameSchema = { type: "string", minLength: 3, maxLength: 50 };
 const limitationsSchema = { type: "array", items: { type: "string" } };
+const dateSchema = { type: "string", format: "date-time" };
+const rankValueSchema = { type: "integer", minimum: 0, maximum: 6 };
+const rankNameSchema = {
+	type: "string",
+	enum: rankNames,
+};
 
 const rankSchema = {
 	type: "object",
@@ -25,8 +33,8 @@ const soldierSchema = {
 		name: nameSchema,
 		rank: rankSchema,
 		limitations: limitationsSchema,
-		createdAt: { type: "string", format: "date-time" },
-		updatedAt: { type: "string", format: "date-time" },
+		createdAt: dateSchema,
+		updatedAt: dateSchema,
 	},
 	required: ["_id", "name", "rank", "limitations"],
 	additionalProperties: false,
@@ -38,11 +46,8 @@ const postSoldierSchema = {
 		properties: {
 			_id: _idSchema,
 			name: nameSchema,
-			rankValue: { type: "integer", minimum: 0, maximum: 6 },
-			rankName: {
-				type: "string",
-				enum: ["private", "corporal", "sergeant", "lieutenant", "captain", "major", "colonel"],
-			},
+			rankValue: rankValueSchema,
+			rankName: rankNameSchema,
 			limitations: limitationsSchema,
 		},
 		required: ["_id", "name", "limitations"],
@@ -71,4 +76,23 @@ const getSoldierByIDSchema = {
 	},
 };
 
-export { postSoldierSchema, getSoldierByIDSchema };
+const getSoldierByQuerySchema = {
+	querystring: {
+		type: "object",
+		properties: {
+			name: nameSchema,
+			rankValue: rankValueSchema,
+			rankName: rankNameSchema,
+			limitations: limitationsSchema,
+		},
+		additionalProperties: false,
+	},
+	response: {
+		200: {
+			type: "array",
+			items: soldierSchema,
+		},
+	},
+};
+
+export { postSoldierSchema, getSoldierByIDSchema, getSoldierByQuerySchema };

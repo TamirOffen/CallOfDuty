@@ -151,8 +151,9 @@ describe("Test Soldier Routes", () => {
 				method: "GET",
 				url: "/soldiers/1234567",
 			});
-			expect(bobResponse.statusCode).toBe(200);
 			const returnedBob = bobResponse.json();
+
+			expect(bobResponse.statusCode).toBe(200);
 			expect(returnedBob._id).toBe("1234567");
 			expect(returnedBob.name).toBe("Bob");
 		});
@@ -162,7 +163,82 @@ describe("Test Soldier Routes", () => {
 				method: "GET",
 				url: "/soldiers/8568742",
 			});
+
 			expect(response.statusCode).toBe(404);
+		});
+	});
+
+	describe("GET /soldiers by query", () => {
+		let fastify;
+
+		beforeAll(async () => {
+			fastify = await createFastifyApp();
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ name: "Bob", _id: "1346792", limitations: ["food"] }),
+			});
+
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ name: "David", _id: "1234567", limitations: ["standing"] }),
+			});
+
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({
+					name: "David",
+					_id: "9876543",
+					limitations: ["food", "standing"],
+				}),
+			});
+		});
+
+		afterAll(async () => {
+			await fastify.mongo.db.collection("soldiers").drop();
+		});
+
+		it("Should return the correct soldiers based on query parameters", async () => {
+			const davidSoldiersResponse = await fastify.inject({
+				method: "GET",
+				url: "/soldiers?name=David",
+			});
+			const davidSoldiers = davidSoldiersResponse.json();
+
+			const foodStandingSoldiersResponse = await fastify.inject({
+				method: "GET",
+				url: "/soldiers?limitations=food,standing",
+			});
+			const foodStandingSoldiers = foodStandingSoldiersResponse.json();
+
+			const foodSoldiersResponse = await fastify.inject({
+				method: "GET",
+				url: "/soldiers?limitations=food",
+			});
+			const foodSoldiers = foodSoldiersResponse.json();
+
+			expect(davidSoldiers.length).toBe(2);
+			expect(davidSoldiers[0]._id).toBe("1234567");
+			expect(davidSoldiers[1]._id).toBe("9876543");
+
+			expect(foodStandingSoldiers.length).toBe(1);
+			expect(foodStandingSoldiers[0]._id).toBe("9876543");
+
+			expect(foodSoldiers.length).toBe(2);
+			expect(foodSoldiers[0]._id).toBe("1346792");
+			expect(foodSoldiers[1]._id).toBe("9876543");
+		});
+
+		it("Empty query should not return any soldiers", async () => {
+			const allSoldiersResponse = await fastify.inject({
+				method: "GET",
+				url: "/soldiers",
+			});
+			const allSoldiers = allSoldiersResponse.json();
+
+			expect(allSoldiers.length).toBe(0);
 		});
 	});
 });

@@ -1,5 +1,9 @@
-import { createSoldier } from "../models/soldier.js";
-import { getSoldierByIDSchema, postSoldierSchema } from "../schemas/soldier-schemas.js";
+import { createSoldier, getSoldierRank } from "../models/soldier.js";
+import {
+	getSoldierByIDSchema,
+	getSoldierByQuerySchema,
+	postSoldierSchema,
+} from "../schemas/soldier-schemas.js";
 
 export async function soldierRoutes(fastify) {
 	fastify.post("/", { schema: postSoldierSchema }, async (request, reply) => {
@@ -21,5 +25,21 @@ export async function soldierRoutes(fastify) {
 		fastify.log.info({ id }, 'Soldier found');
 
 		return reply.status(200).send(soldier);
+	});
+
+	fastify.get("/", { schema: getSoldierByQuerySchema }, async (request, reply) => {
+		const { name, limitations, rankValue, rankName } = request.query;
+		const filter = {
+			...(name && { name }),
+			...(limitations?.length > 0 && { limitations: { $all: limitations[0].split(",") } }),
+			...((rankValue || rankName) && { rank: getSoldierRank(rankName, rankValue) }),
+		};
+		fastify.log.info({ filter }, 'Searching for soldiers by query');
+		const soldiers = Object.keys(filter).length > 0
+			? await fastify.mongo.db.collection("soldiers").find(filter).toArray()
+			: [];
+		fastify.log.info({ soldiers }, 'Soldiers found');
+
+		return reply.status(200).send(soldiers);
 	});
 }

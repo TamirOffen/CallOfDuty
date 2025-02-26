@@ -1,12 +1,9 @@
-const rankMap = {
-	0: "private",
-	1: "corporal",
-	2: "sergeant",
-	3: "lieutenant",
-	4: "captain",
-	5: "major",
-	6: "colonel",
-};
+const rankNames = ["private", "corporal", "sergeant", "lieutenant", "captain", "major", "colonel"];
+
+const rankMap = rankNames.reduce((map, rank, index) => {
+	map[index] = rank;
+	return map;
+}, {});
 
 function getSoldierRank(rankName, rankValue) {
 	if (rankValue !== undefined && rankName === undefined)
@@ -32,4 +29,4 @@ function createSoldier(soldierProperties) {
 	return newSoldier;
 }
 
-export { createSoldier, getSoldierRank };
+export { createSoldier, getSoldierRank, rankNames };

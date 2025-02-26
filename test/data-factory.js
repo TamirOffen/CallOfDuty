@@ -1,7 +1,7 @@
 function generateTestSoldier(soldierParams) {
 	const {
-		_id = Math.floor(Math.random() * 10000000).toString(),
-		name = `Soldier-${Math.floor(Math.random() * 1000)}`,
+		_id = Math.floor(1_000_000 + Math.random() * 9_000_000).toString(),
+		name = `Soldier-${Math.floor(Math.random() * 1_000)}`,
 		rankName,
 		rankValue,
 		limitations = ["no heavy lifting", "requires rest after 6 hours"],
