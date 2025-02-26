@@ -5,6 +5,7 @@ import {
 	getSoldierByQuerySchema,
 	patchSoldierSchema,
 	postSoldierSchema,
+	putLimitationsSchema,
 } from "../schemas/soldier-schemas.js";
 
 export async function soldierRoutes(fastify) {
@@ -81,6 +82,31 @@ export async function soldierRoutes(fastify) {
 			return reply.status(404).send({ message: `Soldier not found with id=${id}` });
 		}
 		fastify.log.info({ updatedSoldier }, 'Soldier updated');
+
+		return reply.status(200).send(updatedSoldier);
+	});
+
+	fastify.put("/:id/limitations", { schema: putLimitationsSchema }, async (request, reply) => {
+		const { id } = request.params;
+		const newLimitations = request.body;
+		fastify.log.info({ newLimitations }, 'Limits to be added');
+
+		const updatedSoldier = await fastify.mongo.db.collection("soldiers").findOneAndUpdate(
+			{ _id: id },
+			{
+				$addToSet: { limitations: { $each: newLimitations.map(limit => limit.toLowerCase()) } },
+				$currentDate: { updatedAt: true },
+			},
+			{ returnDocument: "after" },
+		);
+
+		if (!updatedSoldier) {
+			fastify.log.info({ id }, 'Soldier not found!');
+			return reply.status(404).send({
+				message: `Soldier not found with id=${id}`,
+			});
+		}
+		fastify.log.info({ updatedSoldier }, 'Updated soldier');
 
 		return reply.status(200).send(updatedSoldier);
 	});

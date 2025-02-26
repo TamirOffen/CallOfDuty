@@ -92,6 +92,25 @@ const patchSoldierSchema = {
 	},
 };
 
+const putLimitationsSchema = {
+	params: {
+		type: "object",
+		properties: {
+			id: { type: "string" },
+		},
+		required: ["id"],
+	},
+	body: {
+		type: "array",
+		items: {
+			type: "string",
+		},
+	},
+	response: {
+		200: soldierSchema,
+	},
+};
+
 const getSoldierByIDSchema = {
 	params: {
 		type: "object",
@@ -145,4 +164,5 @@ export {
 	getSoldierByQuerySchema,
 	deleteSoldierSchema,
 	patchSoldierSchema,
+	putLimitationsSchema,
 };

@@ -219,7 +219,7 @@ describe("Test Soldier Routes", () => {
 			fastify = await createFastifyApp();
 		});
 		afterAll(async () => {
-			await fastify.mongo.db.collection("soldiers").drop().catch();
+			await fastify.mongo.db.collection("soldiers").drop();
 		});
 
 		it("Should return updated soldier with status 200", async () => {
@@ -377,4 +377,96 @@ describe("Test Soldier Routes", () => {
 			expect(allSoldiers.length).toBe(0);
 		});
 	});
+
+	describe("PUT /soldiers/:id/limitations", () => {
+		let fastify;
+	
+		beforeAll(async () => {
+			fastify = await createFastifyApp();
+		});
+	
+		afterEach(async () => {
+			await fastify.mongo.db.collection("soldiers").drop();
+		});
+	
+		it("Should add the limitations to the soldier and return status 200", async () => {
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
+			});
+
+			const response = await fastify.inject({
+				method: "PUT",
+				url: "/soldiers/1234567/limitations",
+				payload: ["walking", "sleeping"],
+			});
+			const updatedSoldier = response.json();
+			const updatedLimitations = updatedSoldier.limitations;
+
+			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
+			expect(updatedLimitations.length).toBe(3);
+			expect(updatedLimitations[0]).toBe("food");
+			expect(updatedLimitations[1]).toBe("walking");
+			expect(updatedLimitations[2]).toBe("sleeping");
+		});
+	
+		it("Should return status 404 if soldier not found", async () => {
+			const response = await fastify.inject({
+				method: "PUT",
+				url: "/soldiers/9856142/limitations",
+				payload: ["walking", "sleeping"],
+			});
+
+			expect(response.statusCode).toBe(404);
+		});
+	
+		it("Should not have duplicate limitations in soldier", async () => {
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
+			});
+
+			await fastify.inject({
+				method: "PUT",
+				url: "/soldiers/1234567/limitations",
+				payload: ["walking", "sleeping"],
+			});
+
+			const response = await fastify.inject({
+				method: "PUT",
+				url: "/soldiers/1234567/limitations",
+				payload: ["walking", "sleeping"],
+			});
+			const updatedSoldier = response.json();
+			const updatedLimitations = updatedSoldier.limitations;
+			
+			expect(updatedLimitations.length).toBe(3);
+		});
+
+		it("Should make limitations lower-case", async () => {
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
+			});
+
+			const response = await fastify.inject({
+				method: "PUT",
+				url: "/soldiers/1234567/limitations",
+				payload: ["WaLKiNG", "SLeEPiNg"],
+			});
+			const updatedSoldier = response.json();
+			const updatedLimitations = updatedSoldier.limitations;
+			
+			expect(updatedLimitations.length).toBe(3);
+			expect(updatedLimitations[0]).toBe("food");
+			expect(updatedLimitations[1]).toBe("walking");
+			expect(updatedLimitations[2]).toBe("sleeping");
+		});
+
+	});
+	
 });
+
