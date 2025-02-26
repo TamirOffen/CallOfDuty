@@ -69,6 +69,7 @@ const getSoldierByIDSchema = {
 			id: _idSchema,
 		},
 		required: ["id"],
+		additionalProperties: false,
 	},
 	response: {
 		200: soldierSchema,
@@ -95,4 +96,19 @@ const getSoldierByQuerySchema = {
 	},
 };
 
-export { postSoldierSchema, getSoldierByIDSchema, getSoldierByQuerySchema };
+const deleteSoldierSchema = {
+	params: {
+		type: "object",
+		properties: {
+			id: _idSchema,
+		},
+		required: ["id"],
+		additionalProperties: false,
+	},
+	response: {
+		204: messageSchema,
+		404: messageSchema,
+	},
+};
+
+export { postSoldierSchema, getSoldierByIDSchema, getSoldierByQuerySchema, deleteSoldierSchema };

@@ -1,5 +1,6 @@
 import { createSoldier, getSoldierRank } from "../models/soldier.js";
 import {
+	deleteSoldierSchema,
 	getSoldierByIDSchema,
 	getSoldierByQuerySchema,
 	postSoldierSchema,
@@ -41,5 +42,17 @@ export async function soldierRoutes(fastify) {
 		fastify.log.info({ soldiers }, 'Soldiers found');
 
 		return reply.status(200).send(soldiers);
+	});
+
+	fastify.delete("/:id", { schema: deleteSoldierSchema }, async (request, reply) => {
+		const { id } = request.params;
+		const result = await fastify.mongo.db.collection("soldiers").deleteOne({ _id: id });
+		if (result.deletedCount === 0) {
+			fastify.log.info({ id }, 'Soldier not found!');
+			return reply.status(404).send({ message: `Soldier with ID ${id} not found!` });
+		}
+		fastify.log.info({ id }, 'Soldier deleted');
+
+		return reply.status(204).send({ message: `Soldier with ID ${id} deleted succesfully` });
 	});
 }

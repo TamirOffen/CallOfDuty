@@ -168,6 +168,51 @@ describe("Test Soldier Routes", () => {
 		});
 	});
 
+	describe("DELETE /soldiers/:id", () => {
+		let fastify;
+		beforeAll(async () => {
+			fastify = await createFastifyApp();
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "1234567" }),
+			});
+			await fastify.inject({
+				method: "POST",
+				url: "/soldiers",
+				payload: generateTestSoldier({ _id: "9876543" }),
+			});
+		});
+
+		afterAll(async () => {
+			await fastify.mongo.db.collection("soldiers").drop();
+		});
+
+		it("Delete soldier should return status 204 if soldier is found", async () => {
+			const responseDelBob = await fastify.inject({
+				method: "DELETE",
+				url: "/soldiers/1234567",
+			});
+
+			const responseGetSoldier = await fastify.inject({
+				method: "GET",
+				url: "/soldiers/1234567",
+			});
+
+			expect(responseDelBob.statusCode).toBe(204);
+			expect(responseGetSoldier.statusCode).toBe(404);
+		});
+
+		it("Delete soldier should return status 404 if soldier is not found", async () => {
+			const responseDel = await fastify.inject({
+				method: "DELETE",
+				url: "/soldiers/4562876",
+			});
+			
+			expect(responseDel.statusCode).toBe(404);
+		});
+	});
+
 	describe("GET /soldiers by query", () => {
 		let fastify;
 
@@ -178,13 +223,13 @@ describe("Test Soldier Routes", () => {
 				url: "/soldiers",
 				payload: generateTestSoldier({ name: "Bob", _id: "1346792", limitations: ["food"] }),
 			});
-
+			
 			await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
 				payload: generateTestSoldier({ name: "David", _id: "1234567", limitations: ["standing"] }),
 			});
-
+				
 			await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
