@@ -1,7 +1,30 @@
-function generateTestSoldier(soldierParams) {
+import { getSoldierRank } from "../src/models/soldier";
+
+function generatePostSoldier(soldierParams) {
 	const {
 		_id = Math.floor(1_000_000 + Math.random() * 9_000_000).toString(),
 		name = `Soldier-${Math.floor(Math.random() * 1_000)}`,
+		rankName,
+		rankValue,
+		limitations = ["no heavy lifting", "requires rest after 6 hours"],
+	} = soldierParams;
+
+	const newPostSoldier = {
+		_id,
+		name,
+		limitations,
+	};
+
+	if (rankName) newPostSoldier.rankName = rankName;
+	if (rankValue) newPostSoldier.rankValue = rankValue;
+	if (!rankName && !rankValue) newPostSoldier.rankValue = 0;
+	return newPostSoldier;
+}
+
+function generateSoldier(soldierParams) {
+	const {
+		_id = Math.floor(1000000 + Math.random() * 9000000).toString(),
+		name = `Soldier-${Math.floor(Math.random() * 1000)}`,
 		rankName,
 		rankValue,
 		limitations = ["no heavy lifting", "requires rest after 6 hours"],
@@ -11,32 +34,14 @@ function generateTestSoldier(soldierParams) {
 		_id,
 		name,
 		limitations,
+		createdAt: new Date(2000, 0, 1).toISOString(),
+		updatedAt: new Date().toISOString(),
 	};
 
-	if (rankName) {
-		newSoldier.rankName = rankName;
-	}
-	if (rankValue) {
-		newSoldier.rankValue = rankValue;
-	}
-	if (!rankName && !rankValue) {
-		const includeRankValue = Math.random() < 0.5;
-		if (includeRankValue) {
-			newSoldier.rankValue = Math.floor(Math.random() * 7);
-		} else {
-			newSoldier.rankName = [
-				"private",
-				"corporal",
-				"sergeant",
-				"lieutenant",
-				"captain",
-				"major",
-				"colonel",
-			][Math.floor(Math.random() * 7)];
-		}
-	}
+	if (rankName || rankValue) newSoldier.rank = getSoldierRank(rankName, rankValue);
+	else newSoldier.rank = getSoldierRank(undefined, 0);
 
 	return newSoldier;
 }
 
-export { generateTestSoldier };
+export { generatePostSoldier, generateSoldier };

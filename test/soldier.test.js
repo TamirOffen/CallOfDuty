@@ -1,41 +1,47 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createFastifyApp } from "../src/app.js";
-import { generateTestSoldier } from "./data-factory.js";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { getSoldierRank } from "../src/models/soldier.js";
+import { generatePostSoldier, generateSoldier } from "./data-factory.js";
+import { createFastifyApp } from "./src/app.js";
 
 describe("Test Soldier Routes", () => {
+	let fastify;
+
+	beforeAll(async () => {
+		fastify = await createFastifyApp();
+	});
+	
+	beforeEach(async () => {
+		await fastify.mongo.db.collection("soldiers").drop();
+	});
+
+	afterEach(async () => {
+		await fastify.mongo.db.collection("soldiers").drop();
+	});
+
 	describe("POST /soldiers", () => {
-		let fastify;
-
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-		});
-
-		afterEach(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
 
 		it("Add soldier with rankValue only should return status 201", async () => {
-			const newSoldier = generateTestSoldier({ rankValue: 3 });
+			const newSoldierPost = generatePostSoldier({ rankValue: 3 });
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: newSoldier,
+				payload: newSoldierPost,
 			});
-			const body = response.json();
+			const { rankValue, ...soldierCompare } = newSoldierPost;
+			const soldierInDB = response.json();
 
 			expect(response.statusCode).toBe(201);
-			expect(body._id).toBe(newSoldier._id);
-			expect(body.name).toBe(newSoldier.name);
-			expect(body.rank.name).toBe("lieutenant");
-			expect(body.rank.value).toBe(3);
-			expect(body.createdAt).toBeDefined();
-			expect(body.updatedAt).toBeDefined();
+			expect(soldierInDB).toMatchObject(soldierCompare);
+			expect(soldierInDB.rank).toStrictEqual(
+				getSoldierRank(newSoldierPost.rankName, newSoldierPost.rankValue),
+			);
+			expect(soldierInDB.createdAt).toBeDefined();
+			expect(soldierInDB.updatedAt).toBeDefined();
 		});
 
 		it("Add soldier with rankName only should return status 201", async () => {
 			const soldierRank = getSoldierRank("major");
-			const newSoldier = generateTestSoldier({ rankName: soldierRank.name });
+			const newSoldier = generatePostSoldier({ rankName: soldierRank.name });
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
@@ -48,7 +54,8 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Add soldier with upper-case limitations should return status 201 and lower-case limitations", async () => {
-			const newSoldier = generateTestSoldier({ limitations: ["NO RUNNING", "DiEt"] });
+			const upperCaseLimitations = ["NO RUNNING", "DiEt"];
+			const newSoldier = generatePostSoldier({ limitations: upperCaseLimitations });
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
@@ -57,21 +64,23 @@ describe("Test Soldier Routes", () => {
 			const soldierInDB = response.json();
 
 			expect(response.statusCode).toBe(201);
-			expect(soldierInDB.limitations).toStrictEqual(["no running", "diet"]);
+			expect(soldierInDB.limitations).toStrictEqual(
+				upperCaseLimitations.map((item) => item.toLowerCase()),
+			);
 		});
 
 		it("Add soldier with both rankValue and rankName should return status 400", async () => {
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ rankName: "private", rankValue: 6 }),
+				payload: generatePostSoldier({ rankName: "private", rankValue: 6 }),
 			});
 
 			expect(response.statusCode).toBe(400);
 		});
 
 		it("Add soldier without rankValue or rankName should return status 400", async () => {
-			const { rankName, rankValue, ...badSoldier } = generateTestSoldier({});
+			const { rankName, rankValue, ...badSoldier } = generatePostSoldier({});
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
@@ -85,7 +94,7 @@ describe("Test Soldier Routes", () => {
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ rankName: "ceo" }),
+				payload: generatePostSoldier({ rankName: "ceo" }),
 			});
 
 			expect(response.statusCode).toBe(400);
@@ -95,30 +104,32 @@ describe("Test Soldier Routes", () => {
 			const response1 = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "12345678" }),
+				payload: generatePostSoldier({ _id: "12345678" }),
 			});
+
+			expect(response1.statusCode).toBe(400);
 
 			const response2 = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "123456" }),
+				payload: generatePostSoldier({ _id: "123456" }),
 			});
 
-			expect(response1.statusCode).toBe(400);
 			expect(response2.statusCode).toBe(400);
 		});
 
 		it("Adding a soldier with an ID that already exists in the DB, should return status 500", async () => {
+			const soldierID = "1234567";
 			const response1 = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567" }),
+				payload: generatePostSoldier({ _id: soldierID }),
 			});
 
 			const response2 = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567" }),
+				payload: generatePostSoldier({ _id: soldierID }),
 			});
 
 			expect(response1.statusCode).toBe(201);
@@ -127,41 +138,28 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("GET /soldiers/:id", () => {
-		let fastify;
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567", name: "Bob" }),
-			});
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "9876543" }),
-			});
-		});
-
-		afterAll(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
 
 		it("Should return the soldier by id and status 200", async () => {
-			const bobResponse = await fastify.inject({
-				method: "GET",
-				url: "/soldiers/1234567",
-			});
-			const returnedBob = bobResponse.json();
+			const soldier1 = generateSoldier({});
 
-			expect(bobResponse.statusCode).toBe(200);
-			expect(returnedBob._id).toBe("1234567");
-			expect(returnedBob.name).toBe("Bob");
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier({})]);
+
+			const response = await fastify.inject({
+				method: "GET",
+				url: `/soldiers/${soldier1._id}`,
+			});
+			const returnedSoldier = response.json();
+
+			expect(response.statusCode).toBe(200);
+			expect(returnedSoldier._id).toBe(soldier1._id);
 		});
 
 		it("Should return status 404 when soldier is not found", async () => {
+			const nonExistentSoldierID = generateSoldier({})._id;
+
 			const response = await fastify.inject({
 				method: "GET",
-				url: "/soldiers/8568742",
+				url: `/soldiers/${nonExistentSoldierID}`,
 			});
 
 			expect(response.statusCode).toBe(404);
@@ -169,34 +167,20 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("DELETE /soldiers/:id", () => {
-		let fastify;
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567" }),
-			});
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "9876543" }),
-			});
-		});
-
-		afterAll(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
 
 		it("Delete soldier should return status 204 if soldier is found", async () => {
+			const soldier1 = generateSoldier({});
+
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier({})]);
+
 			const responseDelBob = await fastify.inject({
 				method: "DELETE",
-				url: "/soldiers/1234567",
+				url: `/soldiers/${soldier1._id}`,
 			});
 
 			const responseGetSoldier = await fastify.inject({
 				method: "GET",
-				url: "/soldiers/1234567",
+				url: `/soldiers/${soldier1._id}`,
 			});
 
 			expect(responseDelBob.statusCode).toBe(204);
@@ -204,9 +188,11 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Delete soldier should return status 404 if soldier is not found", async () => {
+			const nonExistentSoldierID = generateSoldier({})._id;
+
 			const responseDel = await fastify.inject({
 				method: "DELETE",
-				url: "/soldiers/4562876",
+				url: `/soldiers/${nonExistentSoldierID}`,
 			});
 
 			expect(responseDel.statusCode).toBe(404);
@@ -214,42 +200,35 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("PATCH /soldiers/:id", () => {
-		let fastify;
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-		});
-		afterAll(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
 
 		it("Should return updated soldier with status 200", async () => {
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ name: "Bob", _id: "1234567" }),
-			});
+			const soldier = generateSoldier({});
+			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
 				name: "Robert Zimmerman",
 				rankName: "major",
 				limitations: ["has to sleep atleast 7 hours per day"],
 			};
+			const { rankName, ...soldierCompare } = updateToSoldier;
+			soldierCompare.rank = getSoldierRank(updateToSoldier.rankName);
 
 			const updateSoldierResponse = await fastify.inject({
 				method: "PATCH",
-				url: "/soldiers/1234567",
+				url: `/soldiers/${soldier._id}`,
 				payload: updateToSoldier,
 			});
 			const updatedSoldier = updateSoldierResponse.json();
 
 			expect(updateSoldierResponse.statusCode).toBe(200);
-			expect(updatedSoldier.name).toBe("Robert Zimmerman");
-			expect(updatedSoldier.rank).toStrictEqual({ name: "major", value: 5 });
-			expect(updatedSoldier.limitations[0]).toBe("has to sleep atleast 7 hours per day");
+			expect(updatedSoldier).toMatchObject(soldierCompare);
 			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
 		});
 
 		it("Update with unwanted properties should be igored", async () => {
+			const soldier = generateSoldier({});
+			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
+
 			const updateToSoldier = {
 				_id: "4567892",
 				name: "Robert Zimmerman",
@@ -257,31 +236,32 @@ describe("Test Soldier Routes", () => {
 				limitations: ["has to sleep atleast 7 hours per day"],
 				fathers_name: "Abram Zimmerman",
 			};
+			const { _id, rankName, fathers_name, ...soldierCompare } = updateToSoldier;
+			soldierCompare.rank = getSoldierRank(updateToSoldier.rankName);
 
 			const updateSoldierResponse = await fastify.inject({
 				method: "PATCH",
-				url: "/soldiers/1234567",
+				url: `/soldiers/${soldier._id}`,
 				payload: updateToSoldier,
 			});
 			const updatedSoldier = updateSoldierResponse.json();
 
 			expect(updateSoldierResponse.statusCode).toBe(200);
-			expect(updatedSoldier.name).toBe("Robert Zimmerman");
-			expect(updatedSoldier.rank).toStrictEqual({ name: "major", value: 5 });
-			expect(updatedSoldier.limitations[0]).toBe("has to sleep atleast 7 hours per day");
-			expect(updatedSoldier._id).toBe("1234567");
+			expect(updatedSoldier).toMatchObject(soldierCompare);
 			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
-			expect(updatedSoldier).not.toHaveProperty("fathers_name");
+			expect(updatedSoldier._id).toBe(soldier._id);
+			expect(updatedSoldier).not.toHaveProperty(updateToSoldier.fathers_name);
 		});
 
 		it("Should reject with status 404 if id is not found ", async () => {
 			const updateToSoldier = {
 				name: "Robert Zimmerman",
 			};
+			const soldier = generateSoldier({});
 
 			const updateSoldierResponse = await fastify.inject({
 				method: "PATCH",
-				url: "/soldiers/9874563",
+				url: `/soldiers/${soldier._id}`,
 				payload: updateToSoldier,
 			});
 
@@ -289,6 +269,10 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Should reject with status 400 if both rankValue and rankName are present", async () => {
+			const soldier = generateSoldier({});
+
+			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
+
 			const updateToSoldier = {
 				rankName: "major",
 				rankValue: 5,
@@ -296,7 +280,7 @@ describe("Test Soldier Routes", () => {
 
 			const updateSoldierResponse = await fastify.inject({
 				method: "PATCH",
-				url: "/soldiers/1234567",
+				url: `/soldiers/${soldier._id}`,
 				payload: updateToSoldier,
 			});
 
@@ -305,66 +289,45 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("GET /soldiers by query", () => {
-		let fastify;
 
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ name: "Bob", _id: "1346792", limitations: ["food"] }),
+		it("Should return the correct soldiers based on one search parameter", async () => {
+			const name = "tamir";
+			const soldier1 = generateSoldier({ name: name });
+			const soldier2 = generateSoldier({ name: name });
+			const soldier3 = generateSoldier({});
+
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
+
+			const getSoldiersResp = await fastify.inject({
+				method: "GET",
+				url: `/soldiers?name=${name}`,
 			});
 
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ name: "David", _id: "1234567", limitations: ["standing"] }),
-			});
+			const returnedSoldiers = getSoldiersResp.json();
 
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({
-					name: "David",
-					_id: "9876543",
-					limitations: ["food", "standing"],
-				}),
-			});
+			expect(returnedSoldiers.length).toBe(2);
+			expect(returnedSoldiers[0]._id).toBe(soldier1._id);
+			expect(returnedSoldiers[1]._id).toBe(soldier2._id);
 		});
 
-		afterAll(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
+		it("Should return the correct soldiers based on two search parameters", async () => {
+			const name = "tamir";
+			const limitations = ["food", "sleeping"];
+			const soldier1 = generateSoldier({ name: name });
+			const soldier2 = generateSoldier({ name: name, limitations: limitations });
+			const soldier3 = generateSoldier({ limitations: limitations });
 
-		it("Should return the correct soldiers based on query parameters", async () => {
-			const davidSoldiersResponse = await fastify.inject({
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
+
+			const getSoldiersResp = await fastify.inject({
 				method: "GET",
-				url: "/soldiers?name=David",
+				url: `/soldiers?name=${name}&limitations=${limitations[0]},${limitations[1]}`,
 			});
-			const davidSoldiers = davidSoldiersResponse.json();
 
-			const foodStandingSoldiersResponse = await fastify.inject({
-				method: "GET",
-				url: "/soldiers?limitations=food,standing",
-			});
-			const foodStandingSoldiers = foodStandingSoldiersResponse.json();
+			const returnedSoldiers = getSoldiersResp.json();
 
-			const foodSoldiersResponse = await fastify.inject({
-				method: "GET",
-				url: "/soldiers?limitations=food",
-			});
-			const foodSoldiers = foodSoldiersResponse.json();
-
-			expect(davidSoldiers.length).toBe(2);
-			expect(davidSoldiers[0]._id).toBe("1234567");
-			expect(davidSoldiers[1]._id).toBe("9876543");
-
-			expect(foodStandingSoldiers.length).toBe(1);
-			expect(foodStandingSoldiers[0]._id).toBe("9876543");
-
-			expect(foodSoldiers.length).toBe(2);
-			expect(foodSoldiers[0]._id).toBe("1346792");
-			expect(foodSoldiers[1]._id).toBe("9876543");
+			expect(returnedSoldiers.length).toBe(1);
+			expect(returnedSoldiers[0]._id).toBe(soldier2._id);
 		});
 
 		it("Empty query should not return any soldiers", async () => {
@@ -379,94 +342,70 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("PUT /soldiers/:id/limitations", () => {
-		let fastify;
-	
-		beforeAll(async () => {
-			fastify = await createFastifyApp();
-		});
-	
-		afterEach(async () => {
-			await fastify.mongo.db.collection("soldiers").drop();
-		});
-	
+		const soldierID = "1234567";
+		const nonExistentSoldierID = "9876543";
+		const limitations = ["food", "walking", "sleeping"];
+
 		it("Should add the limitations to the soldier and return status 200", async () => {
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
-			});
+			await fastify.mongo.db
+				.collection("soldiers")
+				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 1) }));
 
 			const response = await fastify.inject({
 				method: "PUT",
-				url: "/soldiers/1234567/limitations",
-				payload: ["walking", "sleeping"],
+				url: `/soldiers/${soldierID}/limitations`,
+				payload: limitations.slice(1),
 			});
 			const updatedSoldier = response.json();
 			const updatedLimitations = updatedSoldier.limitations;
 
 			expect(updatedSoldier.createdAt < updatedSoldier.updatedAt).toBe(true);
-			expect(updatedLimitations.length).toBe(3);
-			expect(updatedLimitations[0]).toBe("food");
-			expect(updatedLimitations[1]).toBe("walking");
-			expect(updatedLimitations[2]).toBe("sleeping");
+			expect(updatedLimitations).toStrictEqual(limitations);
 		});
-	
+
 		it("Should return status 404 if soldier not found", async () => {
 			const response = await fastify.inject({
 				method: "PUT",
-				url: "/soldiers/9856142/limitations",
-				payload: ["walking", "sleeping"],
+				url: `/soldiers/${nonExistentSoldierID}/limitations`,
+				payload: limitations,
 			});
 
 			expect(response.statusCode).toBe(404);
 		});
-	
-		it("Should not have duplicate limitations in soldier", async () => {
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
-			});
 
-			await fastify.inject({
-				method: "PUT",
-				url: "/soldiers/1234567/limitations",
-				payload: ["walking", "sleeping"],
-			});
+		it("PUT /soldiers/:id/limitations should not have duplicate limitations", async () => {
+			await fastify.mongo.db
+				.collection("soldiers")
+				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 2) }));
 
 			const response = await fastify.inject({
 				method: "PUT",
-				url: "/soldiers/1234567/limitations",
-				payload: ["walking", "sleeping"],
+				url: `/soldiers/${soldierID}/limitations`,
+				payload: limitations.slice(1),
 			});
 			const updatedSoldier = response.json();
 			const updatedLimitations = updatedSoldier.limitations;
-			
-			expect(updatedLimitations.length).toBe(3);
+
+			expect(updatedLimitations).toStrictEqual(limitations);
 		});
 
 		it("Should make limitations lower-case", async () => {
-			await fastify.inject({
-				method: "POST",
-				url: "/soldiers",
-				payload: generateTestSoldier({ _id: "1234567", limitations: ["food"] }),
-			});
+			const upperCaseLimitations = limitations.slice(1).map((item) => item.toUpperCase());
+
+			await fastify.mongo.db
+				.collection("soldiers")
+				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 1) }));
 
 			const response = await fastify.inject({
 				method: "PUT",
-				url: "/soldiers/1234567/limitations",
-				payload: ["WaLKiNG", "SLeEPiNg"],
+				url: `/soldiers/${soldierID}/limitations`,
+				payload: upperCaseLimitations,
 			});
 			const updatedSoldier = response.json();
 			const updatedLimitations = updatedSoldier.limitations;
-			
+
 			expect(updatedLimitations.length).toBe(3);
-			expect(updatedLimitations[0]).toBe("food");
-			expect(updatedLimitations[1]).toBe("walking");
-			expect(updatedLimitations[2]).toBe("sleeping");
+			expect(updatedLimitations).toStrictEqual(limitations);
 		});
-
 	});
-	
 });
-
