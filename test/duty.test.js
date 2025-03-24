@@ -1,20 +1,27 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
+import { closeDb, initDb } from "../src/db.js";
 import { generateDuty, generatePostDuty } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
 	let fastify;
+	let db;
 
 	beforeAll(async () => {
 		fastify = await createFastifyApp();
+		db = await initDb("DutiesTestDB");
 	});
 
 	beforeEach(async () => {
-		await fastify.mongo.db.collection("duties").drop();
+		await db.collection("duties").drop();
 	});
 
 	afterEach(async () => {
-		await fastify.mongo.db.collection("duties").drop();
+		await db.collection("duties").drop();
+	});
+
+	afterAll(async () => {
+		await closeDb();
 	});
 
 	describe("POST /duties", () => {
@@ -118,7 +125,7 @@ describe("Test Duties Routes", () => {
 		});
 
 		it("Should return the correct duties based on 1 query parameter", async () => {
-			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2, duty3]);
+			await db.collection("duties").insertMany([duty1, duty2, duty3]);
 			const duty1ID = duty1._id.toString();
 			const duty2ID = duty2._id.toString();
 			const response = await fastify.inject({
@@ -132,7 +139,7 @@ describe("Test Duties Routes", () => {
 		});
 
 		it("Should return the correct duties based on 2 query parameters", async () => {
-			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2, duty3]);
+			await db.collection("duties").insertMany([duty1, duty2, duty3]);
 			const duty1ID = duty1._id.toString();
 			const duty2ID = duty2._id.toString();
 			const response = await fastify.inject({
@@ -159,7 +166,7 @@ describe("Test Duties Routes", () => {
 		it("Should return the corresponding duty and status 200", async () => {
 			const duty1 = generateDuty({});
 			const duty2 = generateDuty({});
-			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
+			await db.collection("duties").insertMany([duty1, duty2]);
 			const duty1ID = duty1._id.toString();
 
 			const getDutyResponse = await fastify.inject({
@@ -192,7 +199,7 @@ describe("Test Duties Routes", () => {
 		it("Delete duty should return status code 204 if duty is found, and delete duty from DB", async () => {
 			const duty1 = generateDuty({});
 			const duty2 = generateDuty({});
-			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
+			await db.collection("duties").insertMany([duty1, duty2]);
 			const duty1ID = duty1._id.toString();
 
 			const deleteDutyResponse = await fastify.inject({
@@ -219,7 +226,7 @@ describe("Test Duties Routes", () => {
 		it("Cannot not delete a scheduled duty, and should return status code 400", async () => {
 			const duty = generateDuty({});
 			duty.status = "scheduled";
-			await fastify.mongo.db.collection("duties").insertOne(duty);
+			await db.collection("duties").insertOne(duty);
 			const dutyID = duty._id.toString();
 
 			const dutyDNEResponse = await fastify.inject({
@@ -251,7 +258,7 @@ describe("Test Duties Routes", () => {
 		};
 
 		it("Should return updated duty with status 200", async () => {
-			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			await db.collection("duties").insertOne(originalDuty);
 
 			const patchResponse = await fastify.inject({
 				method: "PATCH",
@@ -277,7 +284,7 @@ describe("Test Duties Routes", () => {
 		it("Cannot update scheduled duties, should return status 400", async () => {
 			const scheduledDuty = generateDuty({});
 			scheduledDuty.status = "scheduled";
-			await fastify.mongo.db.collection("duties").insertOne(scheduledDuty);
+			await db.collection("duties").insertOne(scheduledDuty);
 
 			const patchResponse = await fastify.inject({
 				method: "PATCH",
@@ -289,7 +296,7 @@ describe("Test Duties Routes", () => {
 		});
 
 		it("Cannot alter the id of the duty, should return status 400", async () => {
-			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			await db.collection("duties").insertOne(originalDuty);
 			const idUpdate = { _id: 123456 };
 
 			const patchResponse = await fastify.inject({
@@ -303,7 +310,7 @@ describe("Test Duties Routes", () => {
 		});
 
 		it("Cannot add new properties to the duty, should return status 400", async () => {
-			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			await db.collection("duties").insertOne(originalDuty);
 			const newPropertyUpdate = { new_property: "property" };
 
 			const patchResponse = await fastify.inject({
@@ -318,7 +325,7 @@ describe("Test Duties Routes", () => {
 
 		it("Cannot update duty to have minRank > maxRank, should return status 400", async () => {
 			const duty = generateDuty({ minRank: 5 });
-			await fastify.mongo.db.collection("duties").insertOne(duty);
+			await db.collection("duties").insertOne(duty);
 
 			const newPropertyUpdate = { maxRank: 3 };
 			const patchResponse = await fastify.inject({
@@ -332,7 +339,7 @@ describe("Test Duties Routes", () => {
 
 		it("Cannot update duty to have startTime be in the past, should return status 400", async () => {
 			const duty = generateDuty({});
-			await fastify.mongo.db.collection("duties").insertOne(duty);
+			await db.collection("duties").insertOne(duty);
 
 			const now = new Date();
 			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
@@ -353,7 +360,7 @@ describe("Test Duties Routes", () => {
 			const originalConstraints = ["Aleph", "Bet"];
 			const newConstraints = ["A", "B", "C"];
 			const duty = generateDuty({ constraints: originalConstraints });
-			await fastify.mongo.db.collection("duties").insertOne(duty);
+			await db.collection("duties").insertOne(duty);
 
 			const putResponse = await fastify.inject({
 				method: "PUT",
@@ -381,7 +388,7 @@ describe("Test Duties Routes", () => {
 			const originalConstraints = ["Aleph", "Bet"];
 			const newConstraints = ["Aleph", "Bet", "C"];
 			const duty = generateDuty({ constraints: originalConstraints });
-			await fastify.mongo.db.collection("duties").insertOne(duty);
+			await db.collection("duties").insertOne(duty);
 
 			const putResponse = await fastify.inject({
 				method: "PUT",

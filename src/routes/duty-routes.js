@@ -1,4 +1,5 @@
 import { ObjectId } from "@fastify/mongodb";
+import { initDb } from "../db.js";
 import { createDuty } from "../models/duty.js";
 import {
 	deleteDutySchema,
@@ -11,9 +12,11 @@ import {
 
 export async function dutyRoutes(fastify) {
 	fastify.post("/", { schema: postDutySchema }, async (request, reply) => {
+		const db = await initDb();
+
 		try {
 			const newDuty = createDuty(request.body);
-			await fastify.mongo.db.collection("duties").insertOne(newDuty);
+			await db.collection("duties").insertOne(newDuty);
 			request.log.info({ duty: newDuty }, "Duty created successfully");
 
 			return reply.code(201).send(newDuty);
@@ -23,15 +26,15 @@ export async function dutyRoutes(fastify) {
 	});
 
 	fastify.get("/", { schema: getDutyByQuerySchema }, async (request, reply) => {
+		const db = await initDb();
+
 		const { constraints, ...otherProps } = request.query;
 		const filter = otherProps;
 		if (constraints?.length) filter.constraints = { $all: constraints.split(",") };
 		request.log.info({ filter }, "Searching for duties by query");
 
 		const duties =
-			Object.keys(filter).length > 0
-				? await fastify.mongo.db.collection("duties").find(filter).toArray()
-				: [];
+			Object.keys(filter).length > 0 ? await db.collection("duties").find(filter).toArray() : [];
 		if (duties.length) request.log.info("No duties found");
 		else request.log.info({ duties }, "Duties found");
 
@@ -39,12 +42,12 @@ export async function dutyRoutes(fastify) {
 	});
 
 	fastify.get("/:id", { schema: getDutyByIDSchema }, async (request, reply) => {
+		const db = await initDb();
+
 		const { id } = request.params;
 		request.log.info({ id }, "Looking for duty by ID");
 
-		const duty = await fastify.mongo.db
-			.collection("duties")
-			.findOne({ _id: ObjectId.createFromHexString(id) });
+		const duty = await db.collection("duties").findOne({ _id: ObjectId.createFromHexString(id) });
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -57,9 +60,11 @@ export async function dutyRoutes(fastify) {
 	});
 
 	fastify.delete("/:id", { schema: deleteDutySchema }, async (request, reply) => {
+		const db = await initDb();
+
 		const { id } = request.params;
 		const objectID = ObjectId.createFromHexString(id);
-		const duty = await fastify.mongo.db.collection("duties").findOne({ _id: objectID });
+		const duty = await db.collection("duties").findOne({ _id: objectID });
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -70,16 +75,18 @@ export async function dutyRoutes(fastify) {
 			return reply.status(400).send({ message: "Scheduled duties cannot be deleted!" });
 		}
 
-		await fastify.mongo.db.collection("duties").deleteOne({ _id: objectID });
+		await db.collection("duties").deleteOne({ _id: objectID });
 		request.log.info({ id }, "Duty deleted");
 
 		return reply.status(204).send({ message: `Duty with ID ${id} deleted succesfully` });
 	});
 
 	fastify.patch("/:id", { schema: patchDutySchema }, async (request, reply) => {
+		const db = await initDb();
+
 		const { id } = request.params;
 		const objectID = ObjectId.createFromHexString(id);
-		const duty = await fastify.mongo.db.collection("duties").findOne({ _id: objectID });
+		const duty = await db.collection("duties").findOne({ _id: objectID });
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -99,7 +106,7 @@ export async function dutyRoutes(fastify) {
 			return reply.status(400).send({ message: "Cannot update scheduled duty" });
 		}
 
-		const updatedDuty = await fastify.mongo.db
+		const updatedDuty = await db
 			.collection("duties")
 			.findOneAndUpdate(
 				{ _id: objectID },
@@ -112,11 +119,13 @@ export async function dutyRoutes(fastify) {
 	});
 
 	fastify.put("/:id/constraints", { schema: putConstraintsSchema }, async (request, reply) => {
+		const db = await initDb();
+
 		const { id } = request.params;
 		const newConstraints = request.body;
 		request.log.info({ newConstraints }, "constraints to be added");
 
-		const updatedDuty = await fastify.mongo.db.collection("duties").findOneAndUpdate(
+		const updatedDuty = await db.collection("duties").findOneAndUpdate(
 			{ _id: ObjectId.createFromHexString(id) },
 			{
 				$addToSet: { constraints: { $each: newConstraints } },
