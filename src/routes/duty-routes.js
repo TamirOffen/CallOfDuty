@@ -8,6 +8,7 @@ import {
 	patchDutySchema,
 	postDutySchema,
 	putConstraintsSchema,
+	scheduleDutySchema,
 } from "../schemas/duty-schemas.js";
 
 export async function dutyRoutes(fastify) {
@@ -140,6 +141,119 @@ export async function dutyRoutes(fastify) {
 			});
 		}
 		request.log.info({ updatedDuty }, "Updated duty");
+
+		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/schedule", { schema: scheduleDutySchema }, async (request, reply) => {
+		const db = await initDb();
+
+		const { id } = request.params;
+		const dutyID = ObjectId.createFromHexString(id);
+		const duty = await db.collection("duties").findOne({ _id: dutyID });
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		} else if (
+			duty.status === "scheduled" ||
+			duty.status === "canceled" ||
+			new Date(duty.startTime) < new Date()
+		) {
+			request.log.info({ id }, "Cannot schedule duty");
+			return reply.status(400).send({ message: "Cannot schedule duty" });
+		}
+
+		// get potential soldiers: start
+		const query = {};
+		if (duty.minRank || duty.maxRank) {
+			const rankQuery = {};
+			if (duty.minRank) rankQuery.$gte = duty.minRank;
+			if (duty.maxRank) rankQuery.$lte = duty.maxRank;
+			query["rank.value"] = rankQuery;
+		}
+
+		query["limitations"] = {
+			$not: {
+				$elemMatch: {
+					$in: duty.constraints,
+				},
+			},
+		};
+
+		const notPossibleSoldiersAgg = await db
+			.collection("duties")
+			.aggregate([
+				{
+					$match: {
+						_id: { $ne: duty._id },
+						$or: [{ startTime: { $lt: duty.endTime }, endTime: { $gt: duty.startTime } }],
+					},
+				},
+				{ $unwind: "$soldiers" },
+				{
+					$group: {
+						_id: null, //not needed?
+						soldierIds: { $addToSet: "$soldiers" },
+					},
+				},
+				{
+					$project: {
+						_id: 0,
+						soldierIds: 1,
+					},
+				},
+			])
+			.toArray();
+
+		const notPossibleSoldiers = notPossibleSoldiersAgg[0]?.soldierIds || [];
+		query._id = { $nin: notPossibleSoldiers };
+
+		const potentialSoldiers = (
+			await db.collection("soldiers").find(query).project({ _id: 1 }).toArray()
+		).map((doc) => doc._id);
+		// get potential soldiers: end
+
+		if (potentialSoldiers.length < duty.soldiersRequired) {
+			request.log.info(
+				{
+					potentialCount: potentialSoldiers.length,
+					requiredCount: duty.soldiersRequired,
+				},
+				"Not enough soldiers can be scheduled",
+			);
+			return reply.status(400).send({ message: "Not enough soldiers can be scheduled" });
+		}
+
+		// get scoreMap: start
+		const justiceBoardResponse = await fastify.inject({
+			method: "GET",
+			url: `/justice-board`,
+		});
+		const justiceBoard = justiceBoardResponse.json();
+		const scoreMap = Object.fromEntries(justiceBoard.map(({ _id, score }) => [_id, score]));
+		// get scoreMap: end
+
+		const sortedSoldiers = potentialSoldiers.sort((a, b) => {
+			return scoreMap[a] - scoreMap[b];
+		});
+		const scheduledSoldiers = sortedSoldiers.slice(0, duty.soldiersRequired);
+
+		const updatedDuty = await db.collection("duties").findOneAndUpdate(
+			{ _id: dutyID },
+			{
+				$addToSet: { soldiers: { $each: scheduledSoldiers } },
+				$set: { status: "scheduled" },
+				$push: {
+					statusHistory: {
+						status: "scheduled",
+						date: new Date(),
+					},
+				},
+				$currentDate: { updatedAt: true },
+			},
+			{ returnDocument: "after" },
+		);
 
 		return reply.status(200).send(updatedDuty);
 	});
