@@ -79,7 +79,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Add soldier without rankValue or rankName should return status 400", async () => {
-			const { rankName, rankValue, ...badSoldier } = generatePostSoldier({});
+			const { rankName, rankValue, ...badSoldier } = generatePostSoldier();
 			const response = await fastify.inject({
 				method: "POST",
 				url: "/soldiers",
@@ -138,9 +138,9 @@ describe("Test Soldier Routes", () => {
 
 	describe("GET /soldiers/:id", () => {
 		it("Should return the soldier by id and status 200", async () => {
-			const soldier1 = generateSoldier({});
+			const soldier1 = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier({})]);
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier()]);
 
 			const response = await fastify.inject({
 				method: "GET",
@@ -153,7 +153,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Should return status 404 when soldier is not found", async () => {
-			const nonExistentSoldierID = generateSoldier({})._id;
+			const nonExistentSoldierID = generateSoldier()._id;
 
 			const response = await fastify.inject({
 				method: "GET",
@@ -166,9 +166,9 @@ describe("Test Soldier Routes", () => {
 
 	describe("DELETE /soldiers/:id", () => {
 		it("Delete soldier should return status 204 if soldier is found", async () => {
-			const soldier1 = generateSoldier({});
+			const soldier1 = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier({})]);
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier()]);
 
 			const responseDelBob = await fastify.inject({
 				method: "DELETE",
@@ -185,7 +185,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Delete soldier should return status 404 if soldier is not found", async () => {
-			const nonExistentSoldierID = generateSoldier({})._id;
+			const nonExistentSoldierID = generateSoldier()._id;
 
 			const responseDel = await fastify.inject({
 				method: "DELETE",
@@ -198,7 +198,7 @@ describe("Test Soldier Routes", () => {
 
 	describe("PATCH /soldiers/:id", () => {
 		it("Should return updated soldier with status 200", async () => {
-			const soldier = generateSoldier({});
+			const soldier = generateSoldier();
 			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
@@ -222,7 +222,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Update with unwanted properties should be igored", async () => {
-			const soldier = generateSoldier({});
+			const soldier = generateSoldier();
 			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
@@ -253,7 +253,7 @@ describe("Test Soldier Routes", () => {
 			const updateToSoldier = {
 				name: "Robert Zimmerman",
 			};
-			const soldier = generateSoldier({});
+			const soldier = generateSoldier();
 
 			const updateSoldierResponse = await fastify.inject({
 				method: "PATCH",
@@ -265,7 +265,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("Should reject with status 400 if both rankValue and rankName are present", async () => {
-			const soldier = generateSoldier({});
+			const soldier = generateSoldier();
 
 			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
 
@@ -289,7 +289,7 @@ describe("Test Soldier Routes", () => {
 			const name = "tamir";
 			const soldier1 = generateSoldier({ name: name });
 			const soldier2 = generateSoldier({ name: name });
-			const soldier3 = generateSoldier({});
+			const soldier3 = generateSoldier();
 
 			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
 
