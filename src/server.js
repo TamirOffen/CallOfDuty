@@ -11,12 +11,10 @@ process.on("SIGINT", async () => {
 
 const startServer = async () => {
 	try {
+		app.log.info(`Starting server on port ${port}...`);
 		await app.listen({ port });
 	} catch (err) {
-		app.log.fatal(
-			{ port, err },
-			"Server failed to start. Terminating process.",
-		);
+		app.log.fatal({ port, err }, "Server failed to start. Terminating process.");
 		process.exit(1);
 	}
 };

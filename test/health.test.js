@@ -1,9 +1,8 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { createFastifyApp } from "./app.js";
+import { createFastifyApp } from "../src/app.js";
 
 describe("Health check endpoints", () => {
 	let fastify;
-	
 	beforeAll(() => {
 		fastify = createFastifyApp();
 	});

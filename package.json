@@ -8,8 +8,8 @@
 		"test": "npm run db:local && vitest",
 		"coverage": "vitest run --coverage",
 		"lint": "biome check --write .",
-		"start": "npm run db:local && node --env-file .env server.js | pino-pretty",
-		"dev": "npm run db:local && node --env-file .env --watch server.js | pino-pretty",
+		"start": "npm run db:local && node --env-file .env src/server.js | pino-pretty",
+		"dev": "npm run db:local && node --env-file .env --watch src/server.js | pino-pretty",
 		"db:local": "docker compose up -d mongo"
 	},
 	"repository": {
