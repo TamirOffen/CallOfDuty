@@ -37,11 +37,12 @@ export async function soldierRoutes(fastify) {
 			...(limitations?.length > 0 && { limitations: { $all: limitations.split(",") } }),
 			...((rankValue ?? rankName) && { rank: getSoldierRank(rankName, rankValue) }),
 		};
-		fastify.log.info({ filter }, 'Searching for soldiers by query');
-		const soldiers = Object.keys(filter).length > 0
-			? await fastify.mongo.db.collection("soldiers").find(filter).toArray()
-			: [];
-		fastify.log.info({ soldiers }, 'Soldiers found');
+		fastify.log.info({ filter }, "Searching for soldiers by query");
+		const soldiers =
+			Object.keys(filter).length > 0
+				? await fastify.mongo.db.collection("soldiers").find(filter).toArray()
+				: [];
+		fastify.log.info({ soldiers }, "Soldiers found");
 
 		return reply.status(200).send(soldiers);
 	});
