@@ -163,4 +163,46 @@ describe("Test Duties Routes", () => {
 			expect(dutyDNEResponse.statusCode).toBe(404);
 		});
 	});
+
+	describe("DELETE /duties/:id", () => {
+		it("Delete duty should return status code 204 if duty is found", async () => {
+			const duty1 = generateDuty({});
+			const duty2 = generateDuty({});
+			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
+			const duty1ID = duty1._id.toString();
+
+			const deleteDutyResponse = await fastify.inject({
+				method: "DELETE",
+				url: `/duties/${duty1ID}`,
+			});
+			const getDutyResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${duty1ID}`,
+			});
+
+			expect(deleteDutyResponse.statusCode).toBe(204);
+			expect(getDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Should return status 404 if duty does not exist", async () => {
+			const dutyDNEResponse = await fastify.inject({
+				method: "DELETE",
+				url: `/duties/${"".padStart(24, "0")}`,
+			});
+			expect(dutyDNEResponse.statusCode).toBe(404);
+		});
+
+		it("Should not delete a scheduled duty, and return status code 400", async () => {
+			const duty = generateDuty({});
+			duty.status = "scheduled";
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+			const dutyID = duty._id.toString();
+
+			const dutyDNEResponse = await fastify.inject({
+				method: "DELETE",
+				url: `/duties/${dutyID}`,
+			});
+			expect(dutyDNEResponse.statusCode).toBe(400);
+		});
+	});
 });
