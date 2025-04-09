@@ -15,8 +15,9 @@ const statusSchema = z.object({
 	date: datetimeSchema,
 });
 
-const futureDateSchema = datetimeSchema
-	.refine((date) => date > new Date(), { message: "Date must be in the future" });
+const futureDateSchema = datetimeSchema.refine((date) => date > new Date(), {
+	message: "Date must be in the future",
+});
 
 const dutySchema = z
 	.object({
@@ -130,10 +131,21 @@ const patchDutySchema = {
 	},
 };
 
+const putConstraintsSchema = {
+	params: z.object({
+		id: ObjectIDStringSchema,
+	}),
+	body: z.array(z.string()),
+	response: {
+		200: dutySchema,
+	},
+};
+
 export {
 	postDutySchema,
 	getDutyByQuerySchema,
 	getDutyByIDSchema,
 	deleteDutySchema,
 	patchDutySchema,
+	putConstraintsSchema,
 };

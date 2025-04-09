@@ -72,7 +72,7 @@ describe("Test Duties Routes", () => {
 
 		it("Cannot add duty with endTime before startTime, and should return status 400", async () => {
 			const now = new Date();
-			const earlyEndTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+			const earlyEndTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 
 			const response = await fastify.inject({
 				method: "POST",
@@ -84,7 +84,7 @@ describe("Test Duties Routes", () => {
 
 		it("Cannot add duty with startTime in the past, and should return status 400", async () => {
 			const now = new Date();
-			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 
 			const response = await fastify.inject({
 				method: "POST",
@@ -319,7 +319,7 @@ describe("Test Duties Routes", () => {
 		it("Cannot update duty to have minRank > maxRank, should return status 400", async () => {
 			const duty = generateDuty({ minRank: 5 });
 			await fastify.mongo.db.collection("duties").insertOne(duty);
-			
+
 			const newPropertyUpdate = { maxRank: 3 };
 			const patchResponse = await fastify.inject({
 				method: "PATCH",
@@ -331,11 +331,11 @@ describe("Test Duties Routes", () => {
 		});
 
 		it("Cannot update duty to have startTime be in the past, should return status 400", async () => {
-			const duty = generateDuty({ });
+			const duty = generateDuty({});
 			await fastify.mongo.db.collection("duties").insertOne(duty);
 
 			const now = new Date();
-			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
 			const newPropertyUpdate = { startTime: earlyStartTime };
 
 			const patchResponse = await fastify.inject({
@@ -345,6 +345,56 @@ describe("Test Duties Routes", () => {
 			});
 
 			expect(patchResponse.statusCode).toBe(400);
+		});
+	});
+
+	describe("PUT /duties/:id/constraints", () => {
+		it("Should return the duty with the updated constraints and status 200", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = ["A", "B", "C"];
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([...originalConstraints, ...newConstraints]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+
+		it("Should return status 404, if ID does not exist", async () => {
+			const putDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/constraints`,
+				payload: [],
+			});
+
+			expect(putDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Cannot not have duplicate constraints", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = ["Aleph", "Bet", "C"];
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([
+				...new Set([...originalConstraints, ...newConstraints]),
+			]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
 		});
 	});
 });
