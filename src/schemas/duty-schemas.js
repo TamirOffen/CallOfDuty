@@ -55,7 +55,8 @@ const postDutySchema = {
 };
 
 const getDutyByQuerySchema = {
-	querystring: dutySchema.omit({
+	querystring: dutySchema
+		.omit({
 			_id: true,
 			constraint: true,
 			soldiers: true,
@@ -65,13 +66,23 @@ const getDutyByQuerySchema = {
 		})
 		.extend({
 			constraints: z.string(),
-		}).partial(),
+		})
+		.partial(),
 	response: {
 		200: z.array(dutySchema),
 	},
 };
 
-export {
-	postDutySchema,
-	getDutyByQuerySchema,
+const getDutyByIDSchema = {
+	params: z
+		.object({
+			id: ObjectIDStringSchema,
+		})
+		.strict(),
+	response: {
+		200: dutySchema,
+		404: messageSchema,
+	},
 };
+
+export { postDutySchema, getDutyByQuerySchema, getDutyByIDSchema };
