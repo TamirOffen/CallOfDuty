@@ -9,7 +9,7 @@ describe("Test Soldier Routes", () => {
 	beforeAll(async () => {
 		fastify = await createFastifyApp();
 	});
-	
+
 	beforeEach(async () => {
 		await fastify.mongo.db.collection("soldiers").drop();
 	});
@@ -19,7 +19,6 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("POST /soldiers", () => {
-
 		it("Add soldier with rankValue only should return status 201", async () => {
 			const newSoldierPost = generatePostSoldier({ rankValue: 3 });
 			const response = await fastify.inject({
@@ -138,7 +137,6 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("GET /soldiers/:id", () => {
-
 		it("Should return the soldier by id and status 200", async () => {
 			const soldier1 = generateSoldier({});
 
@@ -167,7 +165,6 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("DELETE /soldiers/:id", () => {
-
 		it("Delete soldier should return status 204 if soldier is found", async () => {
 			const soldier1 = generateSoldier({});
 
@@ -200,7 +197,6 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("PATCH /soldiers/:id", () => {
-
 		it("Should return updated soldier with status 200", async () => {
 			const soldier = generateSoldier({});
 			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
@@ -289,7 +285,6 @@ describe("Test Soldier Routes", () => {
 	});
 
 	describe("GET /soldiers by query", () => {
-
 		it("Should return the correct soldiers based on one search parameter", async () => {
 			const name = "tamir";
 			const soldier1 = generateSoldier({ name: name });

@@ -1,91 +1,87 @@
+import { z } from "zod";
 import { rankNames } from "../models/soldier.js";
 
-const _idSchema = { type: "string", pattern: "^[0-9]{7}$" };
-const nameSchema = { type: "string", minLength: 3, maxLength: 50 };
-const limitationsSchema = { type: "array", items: { type: "string" } };
-const dateSchema = { type: "string", format: "date-time" };
-const rankValueSchema = { type: "integer", minimum: 0, maximum: 6 };
-const rankNameSchema = {
-	type: "string",
-	enum: rankNames,
-};
+const _idSchema = z.string().regex(/^[0-9]{7}$/, "Invalid Soldier ID format");
+const nameSchema = z.string().min(3).max(50);
+const limitationsSchema = z.array(z.string());
+const dateSchema = z.union([
+	z.instanceof(Date),
+	z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
+		message: "Invalid date string",
+	}),
+]);
+const rankValueSchema = z.number().min(0).max(6);
+const rankNameSchema = z.enum(rankNames);
 
-const rankSchema = {
-	type: "object",
-	properties: {
-		name: { type: "string" },
-		value: { type: "integer", minimum: 0, maximum: 6 },
-	},
-	required: ["name", "value"],
-};
+const rankSchema = z
+	.object({
+		name: rankNameSchema,
+		value: rankValueSchema,
+	})
+	.strict();
 
-const messageSchema = {
-	type: "object",
-	properties: {
-		message: { type: "string" },
-	},
-};
+const messageSchema = z.object({
+	message: z.string(),
+});
 
-const soldierSchema = {
-	type: "object",
-	properties: {
+const soldierSchema = z
+	.object({
 		_id: _idSchema,
 		name: nameSchema,
 		rank: rankSchema,
 		limitations: limitationsSchema,
-		createdAt: dateSchema,
-		updatedAt: dateSchema,
-	},
-	required: ["_id", "name", "rank", "limitations"],
-	additionalProperties: false,
-};
+		createdAt: dateSchema.optional(),
+		updatedAt: dateSchema.optional(),
+	})
+	.strict();
 
 const postSoldierSchema = {
-	body: {
-		type: "object",
-		properties: {
+	body: z
+		.object({
 			_id: _idSchema,
 			name: nameSchema,
-			rankValue: rankValueSchema,
-			rankName: rankNameSchema,
+			rankValue: rankValueSchema.optional(),
+			rankName: rankNameSchema.optional(),
 			limitations: limitationsSchema,
-		},
-		required: ["_id", "name", "limitations"],
-		oneOf: [
-			{ required: ["rankValue"], not: { required: ["rankName"] } },
-			{ required: ["rankName"], not: { required: ["rankValue"] } },
-		],
-		additionalProperties: false,
-	},
+		})
+		.refine((data) => {
+			const rankValueExists = data.rankValue !== undefined;
+			const rankNameExists = data.rankName !== undefined;
+
+			return (rankValueExists && !rankNameExists) || (!rankValueExists && rankNameExists);
+		}),
 	response: {
 		201: soldierSchema,
 	},
 };
 
 const patchSoldierSchema = {
-	params: {
-		type: "object",
-		properties: {
+	params: z
+		.object({
 			id: _idSchema,
-		},
-		required: ["id"],
-	},
-	body: {
-		type: "object",
-		properties: {
+		})
+		.strict(),
+	body: z
+		.object({
 			name: nameSchema,
 			rankValue: rankValueSchema,
 			rankName: rankNameSchema,
 			limitations: limitationsSchema,
-		},
-		anyOf: [
-			{ required: ["rankValue"], not: { required: ["rankName"] } },
-			{ required: ["rankName"], not: { required: ["rankValue"] } },
-			{ required: ["name"] },
-			{ required: ["limitations"] },
-		],
-		additionalProperties: false,
-	},
+		})
+		.partial()
+		.refine((data) => {
+			const rankValueExists = data.rankValue !== undefined;
+			const rankNameExists = data.rankName !== undefined;
+			const nameExists = data.name !== undefined;
+			const limitationsExists = data.limitations !== undefined;
+
+			return (
+				(rankValueExists && !rankNameExists) ||
+				(!rankValueExists && rankNameExists) ||
+				nameExists ||
+				limitationsExists
+			);
+		}),
 	response: {
 		200: soldierSchema,
 		404: messageSchema,
@@ -93,32 +89,21 @@ const patchSoldierSchema = {
 };
 
 const putLimitationsSchema = {
-	params: {
-		type: "object",
-		properties: {
-			id: { type: "string" },
-		},
-		required: ["id"],
-	},
-	body: {
-		type: "array",
-		items: {
-			type: "string",
-		},
-	},
+	params: z
+		.object({
+			id: _idSchema,
+		})
+		.strict(),
+	body: limitationsSchema,
 	response: {
 		200: soldierSchema,
 	},
 };
 
 const getSoldierByIDSchema = {
-	params: {
-		type: "object",
-		properties: {
-			id: _idSchema,
-		},
-		required: ["id"],
-	},
+	params: z.object({
+		id: _idSchema,
+	}),
 	response: {
 		200: soldierSchema,
 		404: messageSchema,
@@ -126,32 +111,24 @@ const getSoldierByIDSchema = {
 };
 
 const getSoldierByQuerySchema = {
-	querystring: {
-		type: "object",
-		properties: {
+	querystring: z
+		.object({
 			name: nameSchema,
 			rankValue: rankValueSchema,
 			rankName: rankNameSchema,
-			limitations: { type: "string", minLength: 1 },
-		},
-		additionalProperties: false,
-	},
+			limitations: z.string().min(1),
+		})
+		.strict()
+		.partial(),
 	response: {
-		200: {
-			type: "array",
-			items: soldierSchema,
-		},
+		200: z.array(soldierSchema),
 	},
 };
 
 const deleteSoldierSchema = {
-	params: {
-		type: "object",
-		properties: {
-			id: _idSchema,
-		},
-		required: ["id"],
-	},
+	params: z.object({
+		id: _idSchema,
+	}),
 	response: {
 		204: messageSchema,
 		404: messageSchema,
