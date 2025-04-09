@@ -85,4 +85,14 @@ const getDutyByIDSchema = {
 	},
 };
 
-export { postDutySchema, getDutyByQuerySchema, getDutyByIDSchema };
+const deleteDutySchema = {
+	params: z.object({
+		id: ObjectIDStringSchema,
+	}),
+	response: {
+		200: messageSchema,
+		404: messageSchema,
+	},
+};
+
+export { postDutySchema, getDutyByQuerySchema, getDutyByIDSchema, deleteDutySchema };
