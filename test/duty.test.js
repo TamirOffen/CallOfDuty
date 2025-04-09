@@ -130,4 +130,31 @@ describe("Test Duties Routes", () => {
 			expect(noDutiesResponse.json().length).toBe(0);
 		});
 	});
+
+	describe("GET /duties/:id", () => {
+		it("Should return corresponding duty and code 200", async () => {
+			const duty1 = generateDuty({});
+			const duty2 = generateDuty({});
+			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
+			const duty1ID = duty1._id.toString();
+
+			const getDutyResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${duty1ID}`,
+			});
+
+			expect(getDutyResponse.statusCode).toBe(200);
+			expect(getDutyResponse.json()._id).toBe(duty1ID);
+		});
+
+		it("Should return status 404 if duty does not exist", async () => {
+			const dutyDNEResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${"".padStart(24, "0")}`,
+			});
+
+			expect(dutyDNEResponse.statusCode).toBe(404);
+		});
+	});
+
 });

@@ -88,8 +88,21 @@ const getDutyByQuerySchema = {
 	},
 };
 
+const getDutyByIDSchema = {
+	params: z
+		.object({
+			id: ObjectIDStringSchema,
+		})
+		.strict(),
+	response: {
+		200: dutySchema,
+		404: messageSchema,
+	},
+};
+
 
 export {
 	postDutySchema,
 	getDutyByQuerySchema,
+	getDutyByIDSchema,
 };
