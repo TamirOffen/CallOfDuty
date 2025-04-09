@@ -125,10 +125,21 @@ const patchDutySchema = {
 	},
 };
 
+const putConstraintsSchema = {
+	params: z.object({
+		id: ObjectIDStringSchema,
+	}),
+	body: z.array(z.string()),
+	response: {
+		200: dutySchema,
+	},
+};
+
 export {
 	postDutySchema,
 	getDutyByQuerySchema,
 	getDutyByIDSchema,
 	deleteDutySchema,
 	patchDutySchema,
+	putConstraintsSchema,
 };

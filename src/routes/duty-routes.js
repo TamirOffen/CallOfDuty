@@ -6,6 +6,7 @@ import {
 	getDutyByQuerySchema,
 	patchDutySchema,
 	postDutySchema,
+	putConstraintsSchema,
 } from "../schemas/duty-schemas.js";
 
 export async function dutyRoutes(fastify) {
@@ -103,6 +104,30 @@ export async function dutyRoutes(fastify) {
 				{ returnDocument: "after" },
 			);
 		request.log.info({ updatedDuty }, "Duty updated");
+
+		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/constraints", { schema: putConstraintsSchema }, async (request, reply) => {
+		const { id } = request.params;
+		const newConstraints = request.body;
+		request.log.info({ newConstraints }, "constraints to be added");
+
+		const updatedDuty = await fastify.mongo.db.collection("duties").findOneAndUpdate(
+			{ _id: ObjectId.createFromHexString(id) },
+			{
+				$addToSet: { constraints: { $each: newConstraints } },
+				$currentDate: { updatedAt: true },
+			},
+			{ returnDocument: "after" },
+		);
+
+		if (!updatedDuty) {
+			return reply.status(404).send({
+				message: `Duty not found with id ${id}`,
+			});
+		}
+		request.log.info({ updatedDuty }, "Updated duty");
 
 		return reply.status(200).send(updatedDuty);
 	});

@@ -356,4 +356,54 @@ describe("Test Duties Routes", () => {
 			expect(patchResponse.statusCode).toBe(400);
 		});
 	});
+
+	describe("PUT /duties/:id/constraints", () => {
+		it("should return the duty with the updated constraints and status code 200", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = ["A", "B", "C"];
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([...originalConstraints, ...newConstraints]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+
+		it("should return status code 404, if ID does not exist", async () => {
+			const putDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/constraints`,
+				payload: [],
+			});
+
+			expect(putDutyResponse.statusCode).toBe(404);
+		});
+
+		it("should merge new constraints without duplicates and return status code 200", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = originalConstraints.concat(["C"]);
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([
+				...new Set([...originalConstraints, ...newConstraints]),
+			]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+	});
 });
