@@ -1,3 +1,4 @@
+import { date } from "zod";
 import { createDuty } from "../src/models/duty";
 import { getSoldierRank } from "../src/models/soldier";
 
@@ -46,12 +47,13 @@ function generateSoldier(soldierParams) {
 }
 
 function generatePostDuty(dutyParams) {
+	const now = new Date();
 	const {
 		name = `Duty-${Math.floor(Math.random() * 1000)}`,
 		description = `duty description ${Math.floor(Math.random() * 1000)}`,
 		location = [Math.random() * 180 - 90, Math.random() * 360 - 180],
-		startTime = new Date(2020, 5, 3).toISOString(),
-		endTime = new Date(2020, 6, 4).toISOString(),
+		startTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+		endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
 		constraints = ["Night duty", "Perimeter security"],
 		soldiersRequired = 5,
 		value = 100,

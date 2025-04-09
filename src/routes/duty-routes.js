@@ -4,6 +4,7 @@ import {
 	deleteDutySchema,
 	getDutyByIDSchema,
 	getDutyByQuerySchema,
+	patchDutySchema,
 	postDutySchema,
 } from "../schemas/duty-schemas.js";
 
@@ -72,5 +73,40 @@ export async function dutyRoutes(fastify) {
 		request.log.info({ id }, "Duty deleted");
 
 		return reply.status(204).send({ message: `Duty with ID ${id} deleted succesfully` });
+	});
+
+	fastify.patch("/:id", { schema: patchDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const objectID = ObjectId.createFromHexString(id);
+		const duty = await fastify.mongo.db.collection("duties").findOne({ _id: objectID });
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+		if (duty.minRank && request.body.maxRank && duty.minRank > request.body.maxRank) {
+			request.log.info(
+				{ id },
+				`Cannot update duty to have minRank ${duty.minRank} > maxRank ${request.body.maxRank}`,
+			);
+			return reply.status(400).send({
+				message: `Cannot update duty to have minRank ${duty.minRank} > maxRank ${request.body.maxRank}`,
+			});
+		}
+		if (duty?.status === "scheduled") {
+			request.log.info({ id }, "Cannot update scheduled duty");
+			return reply.status(400).send({ message: "Cannot update scheduled duty" });
+		}
+
+		const updatedDuty = await fastify.mongo.db
+			.collection("duties")
+			.findOneAndUpdate(
+				{ _id: objectID },
+				{ $set: request.body, $currentDate: { updatedAt: true } },
+				{ returnDocument: "after" },
+			);
+		request.log.info({ updatedDuty }, "Duty updated");
+
+		return reply.status(200).send(updatedDuty);
 	});
 }

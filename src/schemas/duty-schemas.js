@@ -8,11 +8,15 @@ const nameSchema = z.string().min(3).max(50);
 const locationSchema = z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]);
 const rankSchema = z.number().min(0).max(6);
 const datetimeSchema = z.coerce.date();
+const IDParamsSchema = z.object({ id: ObjectIDStringSchema }).strict();
 
 const statusSchema = z.object({
 	status: z.string(),
 	date: datetimeSchema,
 });
+
+const futureDateSchema = datetimeSchema
+	.refine((date) => date > new Date(), { message: "Date must be in the future" });
 
 const dutySchema = z
 	.object({
@@ -20,8 +24,8 @@ const dutySchema = z
 		name: nameSchema,
 		description: z.string(),
 		location: locationSchema,
-		startTime: datetimeSchema,
-		endTime: datetimeSchema,
+		startTime: futureDateSchema,
+		endTime: futureDateSchema,
 		minRank: rankSchema.optional(),
 		maxRank: rankSchema.optional(),
 		constraints: z.array(z.string()),
@@ -40,14 +44,18 @@ const messageSchema = z.object({
 });
 
 const postDutySchema = {
-	body: dutySchema.omit({
-		_id: true,
-		soldiers: true,
-		status: true,
-		statusHistory: true,
-		createdAt: true,
-		updatedAt: true,
-	}),
+	body: dutySchema
+		.omit({
+			_id: true,
+			soldiers: true,
+			status: true,
+			statusHistory: true,
+			createdAt: true,
+			updatedAt: true,
+		})
+		.refine((data) => data.endTime > data.startTime, {
+			message: "endTime must be after startTime",
+		}),
 	response: {
 		201: dutySchema,
 		404: messageSchema,
@@ -74,11 +82,7 @@ const getDutyByQuerySchema = {
 };
 
 const getDutyByIDSchema = {
-	params: z
-		.object({
-			id: ObjectIDStringSchema,
-		})
-		.strict(),
+	params: IDParamsSchema,
 	response: {
 		200: dutySchema,
 		404: messageSchema,
@@ -86,13 +90,50 @@ const getDutyByIDSchema = {
 };
 
 const deleteDutySchema = {
-	params: z.object({
-		id: ObjectIDStringSchema,
-	}),
+	params: IDParamsSchema,
 	response: {
-		200: messageSchema,
+		204: messageSchema,
 		404: messageSchema,
 	},
 };
 
-export { postDutySchema, getDutyByQuerySchema, getDutyByIDSchema, deleteDutySchema };
+const patchDutySchema = {
+	params: IDParamsSchema,
+	body: z
+		.object({
+			name: nameSchema,
+			description: z.string(),
+			location: locationSchema,
+			startTime: futureDateSchema,
+			endTime: futureDateSchema,
+			minRank: rankSchema,
+			maxRank: rankSchema,
+			constraints: z.array(z.string()),
+			soldiersRequired: z.number().int().min(1),
+			value: z.number().positive(),
+		})
+		.strict()
+		.partial()
+		.refine(
+			(data) => {
+				if (data.startTime && data.endTime) {
+					return data.endTime > data.startTime;
+				}
+				return true;
+			},
+			{ message: "endTime must be after startTime" },
+		),
+	response: {
+		200: dutySchema,
+		404: messageSchema,
+		400: messageSchema,
+	},
+};
+
+export {
+	postDutySchema,
+	getDutyByQuerySchema,
+	getDutyByIDSchema,
+	deleteDutySchema,
+	patchDutySchema,
+};

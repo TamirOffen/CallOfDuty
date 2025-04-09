@@ -69,6 +69,30 @@ describe("Test Duties Routes", () => {
 			});
 			expect(response.statusCode).toBe(400);
 		});
+
+		it("Cannot add duty with endTime before startTime, and should return status 400", async () => {
+			const now = new Date();
+			const earlyEndTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+
+			const response = await fastify.inject({
+				method: "POST",
+				url: "/duties",
+				payload: generatePostDuty({ startTime: now, endTime: earlyEndTime }),
+			});
+			expect(response.statusCode).toBe(400);
+		});
+
+		it("Cannot add duty with startTime in the past, and should return status 400", async () => {
+			const now = new Date();
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+
+			const response = await fastify.inject({
+				method: "POST",
+				url: "/duties",
+				payload: generatePostDuty({ startTime: earlyStartTime }),
+			});
+			expect(response.statusCode).toBe(400);
+		});
 	});
 
 	describe("GET /duties?", () => {
@@ -132,7 +156,7 @@ describe("Test Duties Routes", () => {
 	});
 
 	describe("GET /duties/:id", () => {
-		it("Should return corresponding duty and code 200", async () => {
+		it("Should return the corresponding duty and status 200", async () => {
 			const duty1 = generateDuty({});
 			const duty2 = generateDuty({});
 			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
@@ -165,7 +189,7 @@ describe("Test Duties Routes", () => {
 	});
 
 	describe("DELETE /duties/:id", () => {
-		it("Delete duty should return status code 204 if duty is found", async () => {
+		it("Delete duty should return status code 204 if duty is found, and delete duty from DB", async () => {
 			const duty1 = generateDuty({});
 			const duty2 = generateDuty({});
 			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
@@ -192,7 +216,7 @@ describe("Test Duties Routes", () => {
 			expect(dutyDNEResponse.statusCode).toBe(404);
 		});
 
-		it("Should not delete a scheduled duty, and return status code 400", async () => {
+		it("Cannot not delete a scheduled duty, and should return status code 400", async () => {
 			const duty = generateDuty({});
 			duty.status = "scheduled";
 			await fastify.mongo.db.collection("duties").insertOne(duty);
@@ -202,7 +226,125 @@ describe("Test Duties Routes", () => {
 				method: "DELETE",
 				url: `/duties/${dutyID}`,
 			});
+			const getDutyResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${dutyID}`,
+			});
+
 			expect(dutyDNEResponse.statusCode).toBe(400);
+			expect(getDutyResponse.statusCode).toBe(200);
+		});
+	});
+
+	describe("PATCH /duties/:id", () => {
+		const originalDuty = generateDuty({
+			name: "Avtash",
+			value: 1.25,
+			constraints: ["gun"],
+		});
+
+		const updateToDuty = {
+			name: "Hagnash",
+			value: 2.5,
+			constraints: ["gun", "officer"],
+			soldiersRequired: 2,
+		};
+
+		it("Should return updated duty with status 200", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+			const updatedDuty = patchResponse.json();
+
+			expect(patchResponse.statusCode).toBe(200);
+			expect(updatedDuty).toMatchObject(updateToDuty);
+		});
+
+		it("Should return status 404, if ID does not exist", async () => {
+			const updateDutyResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${"".padStart(24, "0")}`,
+				payload: updateToDuty,
+			});
+
+			expect(updateDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Cannot update scheduled duties, should return status 400", async () => {
+			const scheduledDuty = generateDuty({});
+			scheduledDuty.status = "scheduled";
+			await fastify.mongo.db.collection("duties").insertOne(scheduledDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${scheduledDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+		});
+
+		it("Cannot alter the id of the duty, should return status 400", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const idUpdate = { _id: 123456 };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: idUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			expect(originalDuty._id.toString()).not.toEqual(idUpdate._id);
+		});
+
+		it("Cannot add new properties to the duty, should return status 400", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const newPropertyUpdate = { new_property: "property" };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			expect(originalDuty).not.toMatchObject(newPropertyUpdate);
+		});
+
+		it("Cannot update duty to have minRank > maxRank, should return status 400", async () => {
+			const duty = generateDuty({ minRank: 5 });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+			
+			const newPropertyUpdate = { maxRank: 3 };
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${duty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+		});
+
+		it("Cannot update duty to have startTime be in the past, should return status 400", async () => {
+			const duty = generateDuty({ });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const now = new Date();
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+			const newPropertyUpdate = { startTime: earlyStartTime };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${duty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
 		});
 	});
 });
