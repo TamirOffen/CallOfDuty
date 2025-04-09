@@ -1,5 +1,10 @@
+import { ObjectId } from "@fastify/mongodb";
 import { createDuty } from "../models/duty.js";
-import { getDutyByQuerySchema, postDutySchema } from "../schemas/duty-schemas.js";
+import {
+	getDutyByIDSchema,
+	getDutyByQuerySchema,
+	postDutySchema,
+} from "../schemas/duty-schemas.js";
 
 export async function dutyRoutes(fastify) {
 	fastify.post("/", { schema: postDutySchema }, async (request, reply) => {
@@ -25,5 +30,23 @@ export async function dutyRoutes(fastify) {
 			request.log.info({ count: duties.length, dutyIDs: duties.map((d) => d._id) }, "Duties found");
 
 		return reply.status(200).send(duties);
+	});
+
+	fastify.get("/:id", { schema: getDutyByIDSchema }, async (request, reply) => {
+		const { id } = request.params;
+		request.log.info({ id }, "Looking for duty by ID");
+
+		const duty = await fastify.mongo.db
+			.collection("duties")
+			.findOne({ _id: ObjectId.createFromHexString(id) });
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		request.log.info({ id }, "Duty found");
+
+		return reply.status(200).send(duty);
 	});
 }
