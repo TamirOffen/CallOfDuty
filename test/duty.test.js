@@ -65,6 +65,30 @@ describe("Test Duties Routes", () => {
 
 			expect(response.statusCode).toBe(500);
 		});
+
+		it("Cannot add duty with endTime before startTime, and should return status 400", async () => {
+			const now = new Date();
+			const earlyEndTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+
+			const response = await fastify.inject({
+				method: "POST",
+				url: "/duties",
+				payload: generatePostDuty({ startTime: now, endTime: earlyEndTime }),
+			});
+			expect(response.statusCode).toBe(400);
+		});
+
+		it("Cannot add duty with startTime in the past, and should return status 400", async () => {
+			const now = new Date();
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+
+			const response = await fastify.inject({
+				method: "POST",
+				url: "/duties",
+				payload: generatePostDuty({ startTime: earlyStartTime }),
+			});
+			expect(response.statusCode).toBe(400);
+		});
 	});
 
 	describe("GET /duties?", () => {
@@ -212,7 +236,124 @@ describe("Test Duties Routes", () => {
 				method: "DELETE",
 				url: `/duties/${dutyID}`,
 			});
+			const getDutyResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${dutyID}`,
+			});
+
 			expect(dutyDNEResponse.statusCode).toBe(400);
+			expect(getDutyResponse.statusCode).toBe(200);
+		});
+	});
+
+	describe("PATCH /duties/:id", () => {
+		const originalDuty = generateDuty({
+			name: "Avtash",
+			value: 1.25,
+			constraints: ["gun"],
+		});
+
+		const updateToDuty = {
+			name: "Hagnash",
+			value: 2.5,
+			constraints: ["gun", "officer"],
+			soldiersRequired: 2,
+		};
+
+		it("should return the updated duty with status 200", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+			const updatedDuty = patchResponse.json();
+
+			expect(patchResponse.statusCode).toBe(200);
+			expect(updatedDuty).toMatchObject(updateToDuty);
+		});
+
+		it("should return status 404, if ID does not exist", async () => {
+			const updateDutyResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${"".padStart(24, "0")}`,
+				payload: updateToDuty,
+			});
+
+			expect(updateDutyResponse.statusCode).toBe(404);
+		});
+
+		it("cannot update scheduled duties, should return status 400", async () => {
+			const scheduledDuty = generateDuty({ status: "scheduled" });
+			await fastify.mongo.db.collection("duties").insertOne(scheduledDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${scheduledDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+		});
+
+		it("cannot alter the id of the duty, and should return status 400", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const idUpdate = { _id: 123456 };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: idUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			expect(originalDuty._id.toString()).not.toEqual(idUpdate._id);
+		});
+
+		it("cannot add new properties to the duty, and should return status 400", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const newPropertyUpdate = { new_property: "property" };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			expect(originalDuty).not.toMatchObject(newPropertyUpdate);
+		});
+
+		it("cannot update duty to have minRank > maxRank, and should return status 400", async () => {
+			const duty = generateDuty({ minRank: 5 });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const newPropertyUpdate = { maxRank: 3 };
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${duty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+		});
+
+		it("cannot update duty to have startTime be in the past, and should return status 400", async () => {
+			const duty = generateDuty();
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const now = new Date();
+			const earlyStartTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+			const newPropertyUpdate = { startTime: earlyStartTime };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${duty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
 		});
 	});
 });
