@@ -110,10 +110,36 @@ const deleteDutySchema = {
 	},
 };
 
+const patchDutySchema = {
+	params: z.object({
+		id: ObjectIDStringSchema,
+	}),
+	body: z
+		.object({
+			name: nameSchema,
+			description: z.string(),
+			location: locationSchema,
+			startTime: datetimeSchema,
+			endTime: datetimeSchema,
+			minRank: rankSchema,
+			maxRank: rankSchema,
+			constraints: z.array(z.string()),
+			soldiersRequired: z.number().int().min(1),
+			value: z.number().positive(),
+		})
+		.strict()
+		.partial(),
+	response: {
+		200: dutySchema,
+		404: messageSchema,
+	},
+};
+
 
 export {
 	postDutySchema,
 	getDutyByQuerySchema,
 	getDutyByIDSchema,
 	deleteDutySchema,
+	patchDutySchema,
 };

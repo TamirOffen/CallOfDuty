@@ -180,4 +180,100 @@ describe("Test Duties Routes", () => {
 		});
 	});
 
+	describe("PATCH /duties/:id", () => {
+		const originalDuty = generateDuty({
+			name: "Avtash",
+			value: 1.25,
+			constraints: ["gun"],
+		});
+
+		const updateToDuty = {
+			name: "Hagnash",
+			value: 2.5,
+			constraints: ["gun", "officer"],
+			soldiersRequired: 2,
+		};
+
+		it("Should return updated duty with status 200", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+			const updatedDuty = patchResponse.json();
+
+			expect(patchResponse.statusCode).toBe(200);
+			for (const key in updateToDuty) expect(updatedDuty[key]).toStrictEqual(updateToDuty[key]);
+		});
+
+		it("Should return status 404, if ID DNE", async () => {
+			const updateDutyResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${"".padStart(24, "0")}`,
+				payload: updateToDuty,
+			});
+
+			expect(updateDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Should not be able to update scheduled duties", async () => {
+			const scheduledDuty = generateDuty({ status: "scheduled" });
+			await fastify.mongo.db.collection("duties").insertOne(scheduledDuty);
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${scheduledDuty._id.toString()}`,
+				payload: updateToDuty,
+			});
+
+			expect(patchResponse.statusCode).toBe(404);
+		});
+
+		it("Should not be able to alter the id of the duty", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const idUpdate = { _id: 123456 };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: idUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			expect(originalDuty._id.toString()).not.toEqual(idUpdate._id);
+		});
+
+		it("Should not be able to add new properties to the duty", async () => {
+			await fastify.mongo.db.collection("duties").insertOne(originalDuty);
+			const newPropertyUpdate = { new_property: "property" };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${originalDuty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(400);
+			for (const newProp of Object.keys(newPropertyUpdate)) {
+				expect(originalDuty).not.toHaveProperty(newProp);
+			}
+		});
+
+		it("Should not be able to update duty to have minRank > maxRank", async () => {
+			const duty = generateDuty({ minRank: 3 });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+			const newPropertyUpdate = { maxRank: 1 };
+
+			const patchResponse = await fastify.inject({
+				method: "PATCH",
+				url: `/duties/${duty._id.toString()}`,
+				payload: newPropertyUpdate,
+			});
+
+			expect(patchResponse.statusCode).toBe(404);
+		});
+	});
+
 });
