@@ -276,4 +276,54 @@ describe("Test Duties Routes", () => {
 		});
 	});
 
+	describe("PUT /duties/:id/constraints", () => {
+		
+		it("Should return the duty with the updated constraints and status 200", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = ["A", "B", "C"];
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([...originalConstraints, ...newConstraints]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+
+		it("Should return status 404, if ID DNE", async () => {
+			const putDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/constraints`,
+				payload: [],
+			});
+
+			expect(putDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Should not have duplicate constraints", async () => {
+			const originalConstraints = ["Aleph", "Bet"];
+			const newConstraints = ["Aleph", "Bet", "C"];
+			const duty = generateDuty({ constraints: originalConstraints });
+			await fastify.mongo.db.collection("duties").insertOne(duty);
+
+			const putResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/constraints`,
+				payload: newConstraints,
+			});
+			const updatedDuty = putResponse.json();
+
+			expect(putResponse.statusCode).toBe(200);
+			expect(updatedDuty.constraints).toStrictEqual([
+				...new Set([...originalConstraints, ...newConstraints]),
+			]);
+			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+	});
 });
