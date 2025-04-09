@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { generatePostDuty } from "./data-factory.js";
+import { generateDuty, generatePostDuty } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
 	let fastify;
@@ -64,6 +64,75 @@ describe("Test Duties Routes", () => {
 			});
 
 			expect(response.statusCode).toBe(500);
+		});
+	});
+
+	describe("GET /duties?", () => {
+		const dutyNames = ["Hagnash", "Avtash"];
+		const dutyValues = [2.5, 3.14, 1.25];
+		const constraints = ["gun", "officer"];
+		const nonExistentDutyName = "Dalpak";
+
+		const duty1 = generateDuty({
+			name: dutyNames[0],
+			value: dutyValues[0],
+			constraints: constraints,
+		});
+		const duty2 = generateDuty({
+			name: dutyNames[0],
+			value: dutyValues[1],
+			constraints: constraints,
+		});
+		const duty3 = generateDuty({
+			name: dutyNames[1],
+			value: dutyValues[2],
+			constraints: constraints.slice(0, 1),
+		});
+
+		it("should return the correct duties based on 1 query parameter", async () => {
+			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2, duty3]);
+			const duty1ID = duty1._id.toString();
+			const duty2ID = duty2._id.toString();
+			const response = await fastify.inject({
+				method: "GET",
+				url: `/duties?name=${dutyNames[0]}`,
+			});
+			const returnedDuties = response.json();
+
+			expect(returnedDuties[0]._id).toBe(duty1ID);
+			expect(returnedDuties[1]._id).toBe(duty2ID);
+		});
+
+		it("should return the correct duties based on 2 query parameters", async () => {
+			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2, duty3]);
+			const duty1ID = duty1._id.toString();
+			const duty2ID = duty2._id.toString();
+			const response = await fastify.inject({
+				method: "GET",
+				url: `/duties?name=${dutyNames[0]}&constraints=${constraints[0]},${constraints[1]}`,
+			});
+			const returnedDuties = response.json();
+
+			expect(returnedDuties[0]._id).toBe(duty1ID);
+			expect(returnedDuties[1]._id).toBe(duty2ID);
+		});
+
+		it("should return an empty array when no duties match the query", async () => {
+			const noDutiesResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties?name=${nonExistentDutyName}`,
+			});
+
+			expect(noDutiesResponse.json().length).toBe(0);
+		});
+
+		it("should return an empty array when sending an empty querystring", async () => {
+			const noDutiesResponse = await fastify.inject({
+				method: "GET",
+				url: "/duties?",
+			});
+
+			expect(noDutiesResponse.json().length).toBe(0);
 		});
 	});
 });
