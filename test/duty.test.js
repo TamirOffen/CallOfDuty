@@ -157,4 +157,27 @@ describe("Test Duties Routes", () => {
 		});
 	});
 
+	describe("DELETE /duties/:id", () => {
+		it("Should return status 200, if duty exists", async () => {
+			const duty1 = generateDuty({});
+			const duty2 = generateDuty({});
+			await fastify.mongo.db.collection("duties").insertMany([duty1, duty2]);
+			const duty1ID = duty1._id.toString();
+
+			const deleteDutyResponse = await fastify.inject({
+				method: "DELETE",
+				url: `/duties/${duty1ID}`,
+			});
+			expect(deleteDutyResponse.statusCode).toBe(200);
+		});
+
+		it("Should return status 404 if duty does not exist", async () => {
+			const dutyDNEResponse = await fastify.inject({
+				method: "DELETE",
+				url: `/duties/${"".padStart(24, "0")}`,
+			});
+			expect(dutyDNEResponse.statusCode).toBe(404);
+		});
+	});
+
 });

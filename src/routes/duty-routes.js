@@ -1,6 +1,7 @@
 import { ObjectId } from "@fastify/mongodb";
 import { createDuty } from "../models/duty.js";
 import {
+	deleteDutySchema,
 	getDutyByIDSchema,
 	getDutyByQuerySchema,
 	postDutySchema,
@@ -50,6 +51,22 @@ export async function dutyRoutes(fastify) {
 		fastify.log.info({ id }, "Duty found");
 
 		return reply.status(200).send(duty);
+	});
+
+	fastify.delete("/:id", { schema: deleteDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const result = await fastify.mongo.db
+			.collection("duties")
+			.deleteOne({ _id: ObjectId.createFromHexString(id) });
+
+		if (result.deletedCount === 0) {
+			fastify.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		fastify.log.info({ id }, "Duty deleted");
+
+		return reply.status(200).send({ message: `Duty with ID ${id} deleted succesfully` });
 	});
 
 }
