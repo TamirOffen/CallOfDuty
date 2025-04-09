@@ -67,6 +67,29 @@ const postDutySchema = {
 	},
 };
 
+const getDutyByQuerySchema = {
+	querystring: z
+		.object({
+			name: nameSchema,
+			description: z.string(),
+			location: locationSchema,
+			startTime: datetimeSchema,
+			endTime: datetimeSchema,
+			minRank: rankSchema,
+			maxRank: rankSchema,
+			constraints: z.string(),
+			soldiersRequired: z.number().int().min(1),
+			value: z.number().positive(),
+			status: z.string(),
+		})
+		.partial(),
+	response: {
+		200: z.array(dutySchema),
+	},
+};
+
+
 export {
 	postDutySchema,
+	getDutyByQuerySchema,
 };
