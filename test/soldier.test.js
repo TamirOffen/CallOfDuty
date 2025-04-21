@@ -166,18 +166,18 @@ describe("Test Soldier Routes", () => {
 
 	describe("DELETE /soldiers/:id", () => {
 		it("Delete soldier should return status 204 if soldier is found", async () => {
-			const soldier = generateSoldier({});
+			const soldier1 = generateSoldier({});
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier, generateSoldier({})]);
+			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier({})]);
 
 			const responseDelBob = await fastify.inject({
 				method: "DELETE",
-				url: `/soldiers/${soldier._id}`,
+				url: `/soldiers/${soldier1._id}`,
 			});
 
 			const responseGetSoldier = await fastify.inject({
 				method: "GET",
-				url: `/soldiers/${soldier._id}`,
+				url: `/soldiers/${soldier1._id}`,
 			});
 
 			expect(responseDelBob.statusCode).toBe(204);
