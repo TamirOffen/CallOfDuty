@@ -1,3 +1,4 @@
+import { getCollection } from "../db.js";
 import { createSoldier, getSoldierRank } from "../models/soldier.js";
 import {
 	deleteSoldierSchema,
@@ -11,7 +12,7 @@ import {
 export async function soldierRoutes(fastify) {
 	fastify.post("/", { schema: postSoldierSchema }, async (request, reply) => {
 		const newSoldier = createSoldier(request.body);
-		await fastify.mongo.db.collection("soldiers").insertOne(newSoldier);
+		await getCollection("soldiers").insertOne(newSoldier);
 		request.log.info({ soldier: newSoldier }, "Soldier created successfully");
 
 		return reply.code(201).send(newSoldier);
@@ -20,7 +21,7 @@ export async function soldierRoutes(fastify) {
 	fastify.get("/:id", { schema: getSoldierByIDSchema }, async (request, reply) => {
 		const { id } = request.params;
 		request.log.info({ id }, "Looking for soldier by ID");
-		const soldier = await fastify.mongo.db.collection("soldiers").findOne({ _id: id });
+		const soldier = await getCollection("soldiers").findOne({ _id: id });
 		if (!soldier) {
 			request.log.info({ id }, "Soldier not found!");
 			return reply.status(404).send({ message: `Soldier not found with id=${id}` });
@@ -39,9 +40,7 @@ export async function soldierRoutes(fastify) {
 		};
 		request.log.info({ filter }, "Searching for soldiers by query");
 		const soldiers =
-			Object.keys(filter).length > 0
-				? await fastify.mongo.db.collection("soldiers").find(filter).toArray()
-				: [];
+			Object.keys(filter).length > 0 ? await getCollection("soldiers").find(filter).toArray() : [];
 		request.log.info({ soldiers }, "Soldiers found");
 
 		return reply.status(200).send(soldiers);
@@ -49,7 +48,7 @@ export async function soldierRoutes(fastify) {
 
 	fastify.delete("/:id", { schema: deleteSoldierSchema }, async (request, reply) => {
 		const { id } = request.params;
-		const result = await fastify.mongo.db.collection("soldiers").deleteOne({ _id: id });
+		const result = await getCollection("soldiers").deleteOne({ _id: id });
 		if (result.deletedCount === 0) {
 			fastify.log.info({ id }, "Soldier not found!");
 			return reply.status(404).send({ message: `Soldier with ID ${id} not found!` });
@@ -71,8 +70,7 @@ export async function soldierRoutes(fastify) {
 		};
 		request.log.info({ updateToSoldier }, "Update to soldier");
 
-		const updatedSoldier = await fastify.mongo.db
-			.collection("soldiers")
+		const updatedSoldier = await getCollection("soldiers")
 			.findOneAndUpdate(
 				{ _id: id },
 				{ $set: updateToSoldier, $currentDate: { updatedAt: true } },
@@ -92,7 +90,7 @@ export async function soldierRoutes(fastify) {
 		const newLimitations = request.body;
 		request.log.info({ newLimitations }, "Limits to be added");
 
-		const updatedSoldier = await fastify.mongo.db.collection("soldiers").findOneAndUpdate(
+		const updatedSoldier = await getCollection("soldiers").findOneAndUpdate(
 			{ _id: id },
 			{
 				$addToSet: { limitations: { $each: newLimitations.map((limit) => limit.toLowerCase()) } },

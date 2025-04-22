@@ -1,21 +1,28 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createFastifyApp } from "../src/app.js";
+import { closeDb, initDb } from "../src/db.js";
 import { getSoldierRank } from "../src/models/soldier.js";
 import { generatePostSoldier, generateSoldier } from "./data-factory.js";
-import { createFastifyApp } from "./src/app.js";
 
 describe("Test Soldier Routes", () => {
 	let fastify;
+	let db;
 
 	beforeAll(async () => {
+		db = await initDb("SoldiersTestDB");
 		fastify = await createFastifyApp();
 	});
 
 	beforeEach(async () => {
-		await fastify.mongo.db.collection("soldiers").drop();
+		await db.collection("soldiers").drop();
 	});
 
 	afterEach(async () => {
-		await fastify.mongo.db.collection("soldiers").drop();
+		await db.collection("soldiers").drop();
+	});
+
+	afterAll(async () => {
+		await closeDb();
 	});
 
 	describe("POST /soldiers", () => {
@@ -140,7 +147,7 @@ describe("Test Soldier Routes", () => {
 		it("Should return the soldier by id and status 200", async () => {
 			const soldier1 = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, generateSoldier()]);
+			await db.collection("soldiers").insertMany([soldier1, generateSoldier()]);
 
 			const response = await fastify.inject({
 				method: "GET",
@@ -168,7 +175,7 @@ describe("Test Soldier Routes", () => {
 		it("Delete soldier should return status 204 if soldier is found", async () => {
 			const soldier = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier, generateSoldier()]);
+			await db.collection("soldiers").insertMany([soldier, generateSoldier()]);
 
 			const responseDelBob = await fastify.inject({
 				method: "DELETE",
@@ -199,7 +206,7 @@ describe("Test Soldier Routes", () => {
 	describe("PATCH /soldiers/:id", () => {
 		it("Should return updated soldier with status 200", async () => {
 			const soldier = generateSoldier();
-			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
+			await db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
 				name: "Robert Zimmerman",
@@ -223,7 +230,7 @@ describe("Test Soldier Routes", () => {
 
 		it("Update with unwanted properties should be igored", async () => {
 			const soldier = generateSoldier();
-			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
+			await db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
 				_id: "4567892",
@@ -267,7 +274,7 @@ describe("Test Soldier Routes", () => {
 		it("Should reject with status 400 if both rankValue and rankName are present", async () => {
 			const soldier = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertOne(soldier);
+			await db.collection("soldiers").insertOne(soldier);
 
 			const updateToSoldier = {
 				rankName: "major",
@@ -291,7 +298,7 @@ describe("Test Soldier Routes", () => {
 			const soldier2 = generateSoldier({ name: name });
 			const soldier3 = generateSoldier();
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
+			await db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
 
 			const getSoldiersResp = await fastify.inject({
 				method: "GET",
@@ -312,7 +319,7 @@ describe("Test Soldier Routes", () => {
 			const soldier2 = generateSoldier({ name: name, limitations: limitations });
 			const soldier3 = generateSoldier({ limitations: limitations });
 
-			await fastify.mongo.db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
+			await db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]);
 
 			const getSoldiersResp = await fastify.inject({
 				method: "GET",
@@ -342,7 +349,7 @@ describe("Test Soldier Routes", () => {
 		const limitations = ["food", "walking", "sleeping"];
 
 		it("Should add the limitations to the soldier and return status 200", async () => {
-			await fastify.mongo.db
+			await db
 				.collection("soldiers")
 				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 1) }));
 
@@ -369,7 +376,7 @@ describe("Test Soldier Routes", () => {
 		});
 
 		it("PUT /soldiers/:id/limitations should not have duplicate limitations", async () => {
-			await fastify.mongo.db
+			await db
 				.collection("soldiers")
 				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 2) }));
 
@@ -387,7 +394,7 @@ describe("Test Soldier Routes", () => {
 		it("Should make limitations lower-case", async () => {
 			const upperCaseLimitations = limitations.slice(1).map((item) => item.toUpperCase());
 
-			await fastify.mongo.db
+			await db
 				.collection("soldiers")
 				.insertOne(generateSoldier({ _id: soldierID, limitations: limitations.slice(0, 1) }));
 
