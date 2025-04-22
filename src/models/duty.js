@@ -9,7 +9,7 @@ export function createDuty(dutyParams) {
 		constraints: dutyParams.constraints,
 		soldiersRequired: dutyParams.soldiersRequired,
 		value: dutyParams.value,
-		soldiers: [],
+		soldiers: dutyParams.soldiers ?? [],
 		status: dutyParams.status ?? "unscheduled",
 		createdAt: currentDate,
 		updatedAt: currentDate,

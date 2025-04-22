@@ -70,12 +70,11 @@ export async function soldierRoutes(fastify) {
 		};
 		request.log.info({ updateToSoldier }, "Update to soldier");
 
-		const updatedSoldier = await getCollection("soldiers")
-			.findOneAndUpdate(
-				{ _id: id },
-				{ $set: updateToSoldier, $currentDate: { updatedAt: true } },
-				{ returnDocument: "after" },
-			);
+		const updatedSoldier = await getCollection("soldiers").findOneAndUpdate(
+			{ _id: id },
+			{ $set: updateToSoldier, $currentDate: { updatedAt: true } },
+			{ returnDocument: "after" },
+		);
 		if (!updatedSoldier) {
 			request.log.info({ id }, "Soldier not found!");
 			return reply.status(404).send({ message: `Soldier not found with id=${id}` });

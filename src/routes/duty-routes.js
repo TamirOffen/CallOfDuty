@@ -93,12 +93,11 @@ export async function dutyRoutes(fastify) {
 			return reply.status(400).send({ message: "Cannot update scheduled duty" });
 		}
 
-		const updatedDuty = await getCollection("duties")
-			.findOneAndUpdate(
-				{ _id: objectID },
-				{ $set: request.body, $currentDate: { updatedAt: true } },
-				{ returnDocument: "after" },
-			);
+		const updatedDuty = await getCollection("duties").findOneAndUpdate(
+			{ _id: objectID },
+			{ $set: request.body, $currentDate: { updatedAt: true } },
+			{ returnDocument: "after" },
+		);
 		request.log.info({ updatedDuty }, "Duty updated");
 
 		return reply.status(200).send(updatedDuty);
