@@ -1,8 +1,8 @@
-import fastifyMongo from "@fastify/mongodb";
 import Fastify from "fastify";
 import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
 import { dutyRoutes } from "./routes/duty-routes.js";
 import { healthRoutes } from "./routes/health-routes.js";
+import { justiceBoardRoute } from "./routes/justice-board-route.js";
 import { soldierRoutes } from "./routes/soldier-routes.js";
 
 export function createFastifyApp() {
@@ -12,16 +12,10 @@ export function createFastifyApp() {
 		},
 	});
 
-	const dbURI = process.env.DB_URI ?? "mongodb://localhost:27017/CallOfDuty_DB";
-
-	fastify.register(fastifyMongo, {
-		forceClose: true,
-		url: dbURI,
-	});
-
 	fastify.register(healthRoutes, { prefix: "/health" });
 	fastify.register(soldierRoutes, { prefix: "/soldiers" });
 	fastify.register(dutyRoutes, { prefix: "/duties" });
+	fastify.register(justiceBoardRoute, { prefix: "/justice-board" });
 
 	fastify.setValidatorCompiler(validatorCompiler);
 	fastify.setSerializerCompiler(serializerCompiler);

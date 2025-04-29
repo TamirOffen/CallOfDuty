@@ -1,10 +1,18 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createFastifyApp } from "../src/app.js";
+import { closeDb, initDb } from "../src/db.js";
 
 describe("Health check endpoints", () => {
 	let fastify;
-	beforeAll(() => {
-		fastify = createFastifyApp();
+	let db;
+
+	beforeAll(async () => {
+		db = await initDb("HealthTestDB");
+		fastify = await createFastifyApp();
+	});
+
+	afterAll(async () => {
+		await closeDb();
 	});
 
 	it("GET /health should return status 200 with ok", async () => {
@@ -28,7 +36,7 @@ describe("Health check endpoints", () => {
 	});
 
 	it("GET /health/db should return status 500 when there is a database error", async () => {
-		vi.spyOn(fastify.mongo.db, "command").mockRejectedValue(() => {
+		vi.spyOn(db, "command").mockRejectedValue(() => {
 			throw new Error("MongoDB connection failed");
 		});
 		const response = await fastify.inject({

@@ -1,4 +1,4 @@
-import { ObjectId } from "@fastify/mongodb";
+import { ObjectId } from "mongodb";
 import { z } from "zod";
 
 const ObjectIdSchema = z.instanceof(ObjectId);

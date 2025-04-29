@@ -40,6 +40,7 @@ function generatePostDuty(dutyParams = {}) {
 		minRank,
 		maxRank,
 		status,
+		soldiers,
 	} = dutyParams;
 
 	const newDuty = {
@@ -54,6 +55,7 @@ function generatePostDuty(dutyParams = {}) {
 		...(status && { status }),
 		...(minRank && { minRank }),
 		...(maxRank && { maxRank }),
+		...(soldiers && { soldiers }),
 	};
 
 	return newDuty;
