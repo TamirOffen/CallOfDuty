@@ -37,7 +37,7 @@ async function getScheduableSoldiersToDuty(duty) {
 	return sortedAvailableSoldiersIDs.map((soldier) => soldier._id);
 }
 
-async function canCancelDuty(duty) {
+function canCancelDuty(duty) {
 	return !(
 		duty.status === "canceled" ||
 		duty.status === "unscheduled" ||

@@ -45,6 +45,23 @@ async function addLimitations(soldierID, newLimitations) {
 	return updatedSoldier;
 }
 
+async function getSoldierScheduledDutiesWithLimitations(
+	soldierID,
+	newLimitations,
+	fromTime = new Date(),
+) {
+	const query = {
+		status: "scheduled",
+		soldiers: soldierID,
+		startTime: { $gte: fromTime },
+	};
+
+	if (newLimitations.length > 0) query.constraints = { $in: newLimitations };
+
+	const duties = await getCollection("duties").find(query).toArray();
+	return duties;
+}
+
 export {
 	insertSoldier,
 	getSoldierByID,
@@ -52,4 +69,5 @@ export {
 	deleteSoldierByID,
 	updateSoldier,
 	addLimitations,
+	getSoldierScheduledDutiesWithLimitations,
 };
