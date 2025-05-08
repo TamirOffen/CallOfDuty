@@ -80,6 +80,13 @@ async function canScheduleDuty(dutyID) {
 	return isUnscheduable ? false : duty;
 }
 
+async function canCancelDuty(dutyID) {
+	const duty = await getDuty(dutyID);
+	const cantCancel = duty?.status === "canceled" || new Date(duty?.startTime) < new Date();
+
+	return cantCancel ? false : duty;
+}
+
 async function getScheduableSoldiersToDuty(dutyID) {
 	const duty = await getDuty(dutyID);
 	if (!duty) return null;
@@ -153,6 +160,28 @@ async function addSoldiersToDuty(dutyID, scheduledSoldiers) {
 	return updatedDuty;
 }
 
+async function cancelDuty(dutyID) {
+	const duty = await getDuty(dutyID);
+	if (!duty) return null;
+
+	const updatedDuty = await getCollection("duties").findOneAndUpdate(
+		{ _id: ObjectId.createFromHexString(dutyID) },
+		{
+			$set: { status: "canceled", soldiers: [] },
+			$push: {
+				statusHistory: {
+					status: "canceled",
+					date: new Date(),
+				},
+			},
+			$currentDate: { updatedAt: true },
+		},
+		{ returnDocument: "after" },
+	);
+
+	return updatedDuty;
+}
+
 export {
 	insertDuty,
 	getDuties,
@@ -163,4 +192,6 @@ export {
 	canScheduleDuty,
 	getScheduableSoldiersToDuty,
 	addSoldiersToDuty,
+	canCancelDuty,
+	cancelDuty,
 };
