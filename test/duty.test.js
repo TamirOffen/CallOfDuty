@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { closeDb, initDb } from "../src/db/client.js";
+import { closeDb, getCollection, initDb } from "../src/db/client.js";
 import { generateDuty, generatePostDuty, generateSoldier, getFutureDate } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
@@ -668,6 +668,83 @@ describe("Test Duties Routes", () => {
 
 			expect(dutyScheduleResponse.statusCode).toBe(200);
 			expect(dutySchedule.soldiers.length).toEqual(duty.soldiersRequired);
+		});
+	});
+
+	describe("PUT /duties/:id/cancel", () => {
+		it("Should cancel duty", async () => {
+			const soldier = generateSoldier();
+
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+			});
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertOne(duty),
+			]);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+			const canceledDuty = await getCollection("duties").findOne({ _id: duty._id });
+
+			expect(cancelDutyResponse.statusCode).toBe(200);
+			expect(canceledDuty.status).toBe("canceled");
+			expect(canceledDuty.soldiers.length).toBe(0);
+			expect(canceledDuty.statusHistory.at(-1).status).toBe("canceled");
+		});
+
+		it("Should not be able to cancel a duty that is already canceled", async () => {
+			const duty = generateDuty({
+				status: "canceled",
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("Should not be able to cancel a duty that is in the past", async () => {
+			const duty = generateDuty({
+				startTime: getFutureDate(-1),
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("Should return status code 404 if duty does not exist in the database", async () => {
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Should not be able to cancel an unscheduled duty, and return status 400", async () => {
+			const duty = generateDuty();
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
 		});
 	});
 });
