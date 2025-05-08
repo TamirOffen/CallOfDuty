@@ -36,4 +36,21 @@ async function getJusticeBoardScoreByID(soldierID) {
 	return justiceBoardSoldier.length ? justiceBoardSoldier[0].score : -1;
 }
 
-export { getJusticeBoard, getJusticeBoardScoreByID };
+async function sortSoldiersAccordingToScore(soldierIds, numOfSoldiers) {
+	const sortedSoldiers = await getCollection("soldiers")
+		.aggregate([
+			{
+				$match: { _id: { $in: soldierIds } },
+			},
+			...calculateSoldierScore,
+			{
+				$sort: { score: 1 },
+			},
+		])
+		.limit(numOfSoldiers)
+		.toArray();
+
+	return sortedSoldiers;
+}
+
+export { getJusticeBoard, getJusticeBoardScoreByID, sortSoldiersAccordingToScore };
