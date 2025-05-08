@@ -142,10 +142,6 @@ async function cancelDuty(dutyID) {
 	return updatedDuty;
 }
 
-async function canCancelDuty(duty) {
-	return !(duty.status === "canceled" || new Date(duty.startTime) < new Date());
-}
-
 export {
 	insertDuty,
 	getDuties,
@@ -157,5 +153,4 @@ export {
 	cancelDuty,
 	getOverlappingDutySoldiers,
 	getAvailableSoldiersForDuty,
-	canCancelDuty,
 };

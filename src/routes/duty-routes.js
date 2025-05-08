@@ -1,6 +1,5 @@
 import {
 	addSoldiersToDuty,
-	canCancelDuty,
 	cancelDuty,
 	deleteDutyByID,
 	getDuties,
@@ -19,7 +18,11 @@ import {
 	putConstraintsSchema,
 	scheduleDutySchema,
 } from "../schemas/duty-schemas.js";
-import { canScheduleDuty, getScheduableSoldiersToDuty } from "../services/schedule-services.js";
+import {
+	canCancelDuty,
+	canScheduleDuty,
+	getScheduableSoldiersToDuty,
+} from "../services/schedule-services.js";
 
 export async function dutyRoutes(fastify) {
 	fastify.post("/", { schema: postDutySchema }, async (request, reply) => {
@@ -159,7 +162,7 @@ export async function dutyRoutes(fastify) {
 			return reply.status(404).send({ message: `Duty not found with id ${id}` });
 		}
 
-		const cancelableDuty = await canCancelDuty(duty);
+		const cancelableDuty = canCancelDuty(duty);
 
 		if (!cancelableDuty) {
 			request.log.info({ id }, "Cannot cancel duty");

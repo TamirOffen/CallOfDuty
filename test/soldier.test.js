@@ -2,7 +2,12 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { createFastifyApp } from "../src/app.js";
 import { closeDb, initDb } from "../src/db/client.js";
 import { getSoldierRank } from "../src/models/soldier.js";
-import { generatePostSoldier, generateSoldier } from "./data-factory.js";
+import {
+	generateDuty,
+	generatePostSoldier,
+	generateSoldier,
+	getFutureDate,
+} from "./data-factory.js";
 
 describe("Test Soldier Routes", () => {
 	let fastify;
@@ -200,6 +205,62 @@ describe("Test Soldier Routes", () => {
 			});
 
 			expect(responseDel.statusCode).toBe(404);
+		});
+
+		it("should not be possible to delete a soldier that is scheduled for a future duty", async () => {
+			const soldier = generateSoldier();
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+			});
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertMany([duty, generateDuty()]),
+			]);
+
+			const responseDel = await fastify.inject({
+				method: "DELETE",
+				url: `/soldiers/${soldier._id}`,
+			});
+
+			const repsonseGet = await fastify.inject({
+				method: "GET",
+				url: `/soldiers/${soldier._id}`,
+			});
+
+			expect(responseDel.statusCode).toBe(400);
+			expect(repsonseGet.statusCode).toBe(200);
+		});
+
+		it("should be possible to delete a soldier that is scheduled for a past duty", async () => {
+			const soldier = generateSoldier();
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+				startTime: getFutureDate(-2),
+				endTime: getFutureDate(-1),
+			});
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertMany([duty, generateDuty()]),
+			]);
+
+			const responseDel = await fastify.inject({
+				method: "DELETE",
+				url: `/soldiers/${soldier._id}`,
+			});
+
+			const repsonseGet = await fastify.inject({
+				method: "GET",
+				url: `/soldiers/${soldier._id}`,
+			});
+
+			expect(responseDel.statusCode).toBe(204);
+			expect(repsonseGet.statusCode).toBe(404);
 		});
 	});
 
@@ -408,6 +469,73 @@ describe("Test Soldier Routes", () => {
 
 			expect(updatedLimitations.length).toBe(3);
 			expect(updatedLimitations).toStrictEqual(limitations);
+		});
+
+		it("should not be possible to add new limitations that conflict with soldier's scheduled duty's constraints", async () => {
+			const soldier = generateSoldier({ limitations: ["run"] });
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+				constraints: ["gun"],
+			});
+			const newLimitations = ["gun"];
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertMany([duty, generateDuty()]),
+			]);
+
+			const responsePut = await fastify.inject({
+				method: "PUT",
+				url: `/soldiers/${soldier._id}/limitations`,
+				payload: newLimitations,
+			});
+
+			const responseGet = await fastify.inject({
+				method: "GET",
+				url: `/soldiers/${soldier._id}`,
+			});
+			const returnedSoldier = responseGet.json();
+
+			expect(responsePut.statusCode).toBe(400);
+			expect(returnedSoldier.limitations).toStrictEqual(soldier.limitations);
+		});
+
+		it("should be possible to add new limitations that conflict with soldier's past duty's constraints", async () => {
+			const soldier = generateSoldier({ limitations: ["run"] });
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+				startTime: getFutureDate(-2),
+				endTime: getFutureDate(-1),
+				constraints: ["gun"],
+			});
+			const newLimitations = ["gun"];
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertMany([duty, generateDuty()]),
+			]);
+
+			const responsePut = await fastify.inject({
+				method: "PUT",
+				url: `/soldiers/${soldier._id}/limitations`,
+				payload: newLimitations,
+			});
+
+			const responseGet = await fastify.inject({
+				method: "GET",
+				url: `/soldiers/${soldier._id}`,
+			});
+			const returnedSoldier = responseGet.json();
+
+			expect(responsePut.statusCode).toBe(200);
+			expect(returnedSoldier.limitations).toStrictEqual([
+				...soldier.limitations,
+				...newLimitations,
+			]);
 		});
 	});
 });
