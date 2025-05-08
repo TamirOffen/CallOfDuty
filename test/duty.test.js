@@ -1,6 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
 import { closeDb, getCollection, initDb } from "../src/db/client.js";
+import { scheduleDutyTaskId } from "../src/scheduler.js";
+import { scheduleAllDuties } from "../src/services/schedule-services.js";
 import { generateDuty, generatePostDuty, generateSoldier, getFutureDate } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
@@ -745,6 +747,123 @@ describe("Test Duties Routes", () => {
 			});
 
 			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+	});
+
+	describe("Automatic Scheduling", () => {
+		it("Should have fastifySchedule plugin registered", () => {
+			expect(fastify.scheduler).toBeDefined();
+		});
+
+		it("Should have scheduleDutiesTask registered with the correct ID", () => {
+			expect(fastify.scheduleDutiesTask).toBeDefined();
+			expect(fastify.scheduleDutiesTask.id).toBe(scheduleDutyTaskId);
+		});
+
+		it("Should schedule duties according to highest duty value", async () => {
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db
+					.collection("soldiers")
+					.insertMany([generateSoldier(), generateSoldier(), generateSoldier()]),
+			]);
+
+			const result = await scheduleAllDuties();
+
+			expect(result[duty1._id]).not.toBeDefined();
+			expect(result[duty2._id].length).toBe(1);
+			expect(result[duty3._id].length).toBe(1);
+		});
+
+		it("Should schedule duties according to highest duty value and soldier rank", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1 });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2, minRank: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5, minRank: 3 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {
+				[duty3._id.toString()]: [soldier2._id],
+				[duty2._id.toString()]: [soldier1._id],
+			};
+
+			const result = await scheduleAllDuties();
+
+			expect(result).toStrictEqual(expectedScheduling);
+		});
+
+		it("Should prioritize duties with higher values", async () => {
+			const duty1 = generateDuty({ soldiersRequired: 1, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([generateSoldier(), generateSoldier()]),
+			]);
+
+			const result = await scheduleAllDuties();
+
+			expect(result[duty1._id]).toBeUndefined();
+			expect(result[duty2._id].length).toBe(1);
+			expect(result[duty3._id].length).toBe(1);
+		});
+
+		it("Should schedule duties according to rank of soldiers", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1 });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2, minRank: 4 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5, minRank: 3 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {
+				[duty3._id.toString()]: [soldier2._id],
+				[duty1._id.toString()]: [soldier1._id, soldier3._id],
+			};
+
+			const result = await scheduleAllDuties();
+
+			expect(new Set(result[duty1._id])).toEqual(new Set(expectedScheduling[duty1._id]));
+			expect(new Set(result[duty3._id])).toEqual(new Set(expectedScheduling[duty3._id]));
+		});
+
+		it("Should schedule no duties when none can be scheduled", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1, limitations: ["gun"] });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, minRank: 5, constraints: ["gun"] });
+			const duty2 = generateDuty({ soldiersRequired: 1, minRank: 4, constraints: ["gun"] });
+			const duty3 = generateDuty({ soldiersRequired: 3, constraints: ["gun"] });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {};
+
+			const result = await scheduleAllDuties();
+
+			expect(result).toStrictEqual(expectedScheduling);
 		});
 	});
 });

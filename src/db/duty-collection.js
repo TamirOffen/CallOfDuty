@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { canScheduleDuty, getScheduableSoldiersToDuty } from "../services/schedule-services.js";
 import { getCollection } from "./client.js";
 
 async function insertDuty(newDuty) {
@@ -142,6 +143,15 @@ async function updateDutyToCanceled(dutyID) {
 	return updatedDuty;
 }
 
+async function getUnscheduledDuties() {
+	const unscheduledDuties = await getCollection("duties")
+		.find({ status: "unscheduled" })
+		.sort({ value: -1 })
+		.toArray();
+
+	return unscheduledDuties;
+}
+
 export {
 	insertDuty,
 	getDuties,
@@ -153,4 +163,5 @@ export {
 	updateDutyToCanceled,
 	getOverlappingDutySoldiers,
 	getAvailableSoldiersForDuty,
+	getUnscheduledDuties,
 };
