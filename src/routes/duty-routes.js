@@ -1,5 +1,7 @@
 import {
 	addSoldiersToDuty,
+	canCancelDuty,
+	cancelDuty,
 	deleteDutyByID,
 	getDuties,
 	getDutyByID,
@@ -146,5 +148,27 @@ export async function dutyRoutes(fastify) {
 		const updatedDuty = await addSoldiersToDuty(id, availableSoldiersIDs);
 
 		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/cancel", { schema: scheduleDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const duty = await getDutyByID(id);
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		const cancelableDuty = await canCancelDuty(duty);
+
+		if (!cancelableDuty) {
+			request.log.info({ id }, "Cannot cancel duty");
+
+			return reply.status(400).send({ message: "Cannot cancel duty" });
+		}
+
+		const canceledDuty = await cancelDuty(id);
+
+		return reply.status(200).send(canceledDuty);
 	});
 }

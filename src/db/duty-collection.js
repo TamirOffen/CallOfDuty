@@ -123,6 +123,29 @@ async function addSoldiersToDuty(dutyID, scheduledSoldiers) {
 	return updatedDuty;
 }
 
+async function cancelDuty(dutyID) {
+	const updatedDuty = await getCollection("duties").findOneAndUpdate(
+		{ _id: ObjectId.createFromHexString(dutyID) },
+		{
+			$set: { status: "canceled", soldiers: [] },
+			$push: {
+				statusHistory: {
+					status: "canceled",
+					date: new Date(),
+				},
+			},
+			$currentDate: { updatedAt: true },
+		},
+		{ returnDocument: "after" },
+	);
+
+	return updatedDuty;
+}
+
+async function canCancelDuty(duty) {
+	return !(duty.status === "canceled" || new Date(duty.startTime) < new Date());
+}
+
 export {
 	insertDuty,
 	getDuties,
@@ -131,6 +154,8 @@ export {
 	patchDuty,
 	putConstraints,
 	addSoldiersToDuty,
+	cancelDuty,
 	getOverlappingDutySoldiers,
 	getAvailableSoldiersForDuty,
+	canCancelDuty,
 };

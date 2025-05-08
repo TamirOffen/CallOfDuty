@@ -646,4 +646,73 @@ describe("Test Duties Routes", () => {
 			expect(new Set(duty4Schedule.soldiers)).toEqual(new Set([soldier2._id, soldier3._id]));
 		});
 	});
+
+	describe("PUT /duties/:id/cancel", () => {
+		it("should cancel duty", async () => {
+			const soldier = generateSoldier();
+
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+			});
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertOne(duty),
+			]);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+			const getDutyResponse = await fastify.inject({
+				method: "GET",
+				url: `/duties/${duty._id.toString()}`,
+			});
+			const canceledDuty = getDutyResponse.json();
+
+			expect(cancelDutyResponse.statusCode).toBe(200);
+			expect(canceledDuty.status).toBe("canceled");
+			expect(canceledDuty.soldiers.length).toBe(0);
+			expect(canceledDuty.statusHistory.at(-1).status).toBe("canceled");
+		});
+
+		it("should not be able to cancel a duty that is already canceled", async () => {
+			const duty = generateDuty({
+				status: "canceled",
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("should not be able to cancel a duty that is in the past", async () => {
+			const duty = generateDuty({
+				startTime: getFutureDate(-1),
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("should return status code 404 if duty does not exist in the database", async () => {
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(404);
+		});
+	});
 });
