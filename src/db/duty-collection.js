@@ -182,6 +182,28 @@ async function cancelDuty(dutyID) {
 	return updatedDuty;
 }
 
+async function scheduleAllDuties() {
+	const unscheduledDuties = await getCollection("duties")
+		.find({ status: "unscheduled" })
+		.sort({ value: -1 })
+		.toArray();
+	const schedulingResults = {};
+	for (const duty of unscheduledDuties) {
+		const dutyID = duty._id.toString();
+		if (await canScheduleDuty(dutyID)) {
+			const soldiers = await getScheduableSoldiersToDuty(dutyID);
+
+			if (soldiers && soldiers.length > 0) {
+				if (await addSoldiersToDuty(dutyID, soldiers)) {
+					schedulingResults[dutyID] = soldiers;
+				}
+			}
+		}
+	}
+
+	return schedulingResults;
+}
+
 export {
 	insertDuty,
 	getDuties,
@@ -194,4 +216,5 @@ export {
 	addSoldiersToDuty,
 	canCancelDuty,
 	cancelDuty,
+	scheduleAllDuties,
 };
