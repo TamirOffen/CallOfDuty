@@ -1,4 +1,11 @@
-import { getCollection } from "../db.js";
+import {
+	deleteSoldierByID,
+	getSoldierByID,
+	getSoldiers,
+	insertSoldier,
+	updateSoldier,
+	addLimitations,
+} from "../db/soldier-collection.js";
 import { createSoldier, getSoldierRank } from "../models/soldier.js";
 import {
 	deleteSoldierSchema,
@@ -12,7 +19,8 @@ import {
 export async function soldierRoutes(fastify) {
 	fastify.post("/", { schema: postSoldierSchema }, async (request, reply) => {
 		const newSoldier = createSoldier(request.body);
-		await getCollection("soldiers").insertOne(newSoldier);
+
+		await insertSoldier(newSoldier);
 		request.log.info({ soldier: newSoldier }, "Soldier created successfully");
 
 		return reply.code(201).send(newSoldier);
@@ -21,7 +29,7 @@ export async function soldierRoutes(fastify) {
 	fastify.get("/:id", { schema: getSoldierByIDSchema }, async (request, reply) => {
 		const { id } = request.params;
 		request.log.info({ id }, "Looking for soldier by ID");
-		const soldier = await getCollection("soldiers").findOne({ _id: id });
+		const soldier = await getSoldierByID(id);
 		if (!soldier) {
 			request.log.info({ id }, "Soldier not found!");
 			return reply.status(404).send({ message: `Soldier not found with id=${id}` });
@@ -38,9 +46,8 @@ export async function soldierRoutes(fastify) {
 			...(limitations?.length > 0 && { limitations: { $all: limitations.split(",") } }),
 			...((rankValue ?? rankName) && { rank: getSoldierRank(rankName, rankValue) }),
 		};
-		request.log.info({ filter }, "Searching for soldiers by query");
-		const soldiers =
-			Object.keys(filter).length > 0 ? await getCollection("soldiers").find(filter).toArray() : [];
+
+		const soldiers = await getSoldiers(filter);
 		request.log.info({ soldiers }, "Soldiers found");
 
 		return reply.status(200).send(soldiers);
@@ -48,7 +55,7 @@ export async function soldierRoutes(fastify) {
 
 	fastify.delete("/:id", { schema: deleteSoldierSchema }, async (request, reply) => {
 		const { id } = request.params;
-		const result = await getCollection("soldiers").deleteOne({ _id: id });
+		const result = await deleteSoldierByID(id);
 		if (result.deletedCount === 0) {
 			fastify.log.info({ id }, "Soldier not found!");
 			return reply.status(404).send({ message: `Soldier with ID ${id} not found!` });
@@ -68,15 +75,11 @@ export async function soldierRoutes(fastify) {
 			}),
 			...((rankValue ?? rankName) && { rank: getSoldierRank(rankName, rankValue) }),
 		};
-		request.log.info({ updateToSoldier }, "Update to soldier");
 
-		const updatedSoldier = await getCollection("soldiers").findOneAndUpdate(
-			{ _id: id },
-			{ $set: updateToSoldier, $currentDate: { updatedAt: true } },
-			{ returnDocument: "after" },
-		);
+		const updatedSoldier = await updateSoldier(id, updateToSoldier);
 		if (!updatedSoldier) {
 			request.log.info({ id }, "Soldier not found!");
+
 			return reply.status(404).send({ message: `Soldier not found with id=${id}` });
 		}
 		request.log.info({ updatedSoldier }, "Soldier updated");
@@ -89,17 +92,11 @@ export async function soldierRoutes(fastify) {
 		const newLimitations = request.body;
 		request.log.info({ newLimitations }, "Limits to be added");
 
-		const updatedSoldier = await getCollection("soldiers").findOneAndUpdate(
-			{ _id: id },
-			{
-				$addToSet: { limitations: { $each: newLimitations.map((limit) => limit.toLowerCase()) } },
-				$currentDate: { updatedAt: true },
-			},
-			{ returnDocument: "after" },
-		);
+		const updatedSoldier = await addLimitations(id, newLimitations);
 
 		if (!updatedSoldier) {
 			request.log.info({ id }, "Soldier not found!");
+
 			return reply.status(404).send({
 				message: `Soldier not found with id ${id}`,
 			});

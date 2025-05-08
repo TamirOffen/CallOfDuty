@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { closeDb, initDb } from "../src/db.js";
+import { closeDb, initDb } from "../src/db/client.js";
 import { getSoldierRank } from "../src/models/soldier.js";
 import { generatePostSoldier, generateSoldier } from "./data-factory.js";
 

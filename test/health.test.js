@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { closeDb, initDb } from "../src/db.js";
+import { closeDb, initDb } from "../src/db/client.js";
 
 describe("Health check endpoints", () => {
 	let fastify;

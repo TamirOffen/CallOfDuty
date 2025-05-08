@@ -26,14 +26,18 @@ function generateSoldier(soldierParams = {}) {
 	return createSoldier(generatePostSoldier(soldierParams));
 }
 
-function generatePostDuty(dutyParams = {}) {
+function getFutureDate(numHours) {
 	const now = new Date();
+	return new Date(now.getTime() + numHours * 60 * 60 * 1000);
+}
+
+function generatePostDuty(dutyParams = {}) {
 	const {
 		name = `Duty-${Math.floor(Math.random() * 1000)}`,
 		description = `duty description ${Math.floor(Math.random() * 1000)}`,
 		location = [Math.random() * 180 - 90, Math.random() * 360 - 180],
-		startTime = new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
-		endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+		startTime = getFutureDate(1),
+		endTime = getFutureDate(2),
 		constraints = ["Night duty", "Perimeter security"],
 		soldiersRequired = 5,
 		value = 100,
@@ -65,4 +69,4 @@ function generateDuty(dutyParams = {}) {
 	return createDuty(generatePostDuty(dutyParams));
 }
 
-export { generatePostSoldier, generateSoldier, generatePostDuty, generateDuty };
+export { generatePostSoldier, generateSoldier, generatePostDuty, generateDuty, getFutureDate };
