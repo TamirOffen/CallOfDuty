@@ -1,10 +1,11 @@
 import {
+	addConstraints,
+	addSoldiersToDuty,
 	deleteDutyByID,
 	getDuties,
 	getDutyByID,
 	insertDuty,
 	updateDuty,
-	addConstraints,
 } from "../db/duty-collection.js";
 import { createDuty } from "../models/duty.js";
 import {
@@ -14,7 +15,9 @@ import {
 	patchDutySchema,
 	postDutySchema,
 	putConstraintsSchema,
+	scheduleDutySchema,
 } from "../schemas/duty-schemas.js";
+import { canScheduleDuty, getScheduableSoldiersToDuty } from "../services/schedule-services.js";
 
 export async function dutyRoutes(fastify) {
 	fastify.post("/", { schema: postDutySchema }, async (request, reply) => {
@@ -110,6 +113,37 @@ export async function dutyRoutes(fastify) {
 			});
 		}
 		request.log.info({ updatedDuty }, "Updated duty");
+
+		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/schedule", { schema: scheduleDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const duty = await getDutyByID(id);
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		const scheduableDuty = canScheduleDuty(duty);
+		if (!scheduableDuty) {
+			request.log.info({ id }, "Cannot schedule duty");
+
+			return reply.status(400).send({ message: "Cannot schedule duty" });
+		}
+
+		const availableSoldiersIDs = await getScheduableSoldiersToDuty(duty);
+		if (availableSoldiersIDs.length < duty.soldiersRequired) {
+			request.log.info(
+				{ requiredCount: duty.soldiersRequired },
+				{ availableSoldiersCount: availableSoldiersIDs.length },
+				"Not enough soldiers can be scheduled",
+			);
+
+			return reply.status(400).send({ message: "Not enough soldiers can be scheduled" });
+		}
+		const updatedDuty = await addSoldiersToDuty(id, availableSoldiersIDs);
 
 		return reply.status(200).send(updatedDuty);
 	});

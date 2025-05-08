@@ -47,4 +47,90 @@ async function addConstraints(dutyID, newConstraints) {
 	return updatedDuty;
 }
 
-export { insertDuty, getDuties, getDutyByID, deleteDutyByID, updateDuty, addConstraints };
+async function getOverlappingDutySoldiers(duty) {
+	const overlappingSoldiers = await getCollection("duties")
+		.aggregate([
+			{
+				$match: {
+					_id: { $ne: duty._id },
+					startTime: { $lt: duty.endTime },
+					endTime: { $gt: duty.startTime },
+				},
+			},
+			{ $unwind: "$soldiers" },
+			{ $project: { _id: 0, soldierId: "$soldiers" } },
+		])
+		.toArray();
+
+	return overlappingSoldiers;
+}
+
+async function getAvailableSoldiersForDuty(duty, soldierFilter) {
+	const availableSoldiers = await getCollection("soldiers")
+		.aggregate([
+			{ $match: soldierFilter },
+			{
+				$lookup: {
+					from: "duties",
+					let: { soldierId: "$_id" },
+					pipeline: [
+						{
+							$match: {
+								_id: { $ne: duty._id },
+								startTime: { $lt: duty.endTime },
+								endTime: { $gt: duty.startTime },
+							},
+						},
+						{
+							$match: {
+								$expr: {
+									$in: ["$$soldierId", "$soldiers"],
+								},
+							},
+						},
+					],
+					as: "conflictingDuties",
+				},
+			},
+			{
+				$match: {
+					conflictingDuties: { $size: 0 },
+				},
+			},
+		])
+		.toArray();
+
+	return availableSoldiers;
+}
+
+async function addSoldiersToDuty(dutyID, scheduledSoldiers) {
+	const updatedDuty = await getCollection("duties").findOneAndUpdate(
+		{ _id: ObjectId.createFromHexString(dutyID) },
+		{
+			$addToSet: { soldiers: { $each: scheduledSoldiers } },
+			$set: { status: "scheduled" },
+			$push: {
+				statusHistory: {
+					status: "scheduled",
+					date: new Date(),
+				},
+			},
+			$currentDate: { updatedAt: true },
+		},
+		{ returnDocument: "after" },
+	);
+
+	return updatedDuty;
+}
+
+export {
+	insertDuty,
+	getDuties,
+	getDutyByID,
+	deleteDutyByID,
+	updateDuty,
+	addConstraints,
+	addSoldiersToDuty,
+	getOverlappingDutySoldiers,
+	getAvailableSoldiersForDuty,
+};

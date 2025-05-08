@@ -1,10 +1,10 @@
 import {
+	addLimitations,
 	deleteSoldierByID,
 	getSoldierByID,
 	getSoldiers,
 	insertSoldier,
 	updateSoldier,
-	addLimitations,
 } from "../db/soldier-collection.js";
 import { createSoldier, getSoldierRank } from "../models/soldier.js";
 import {
