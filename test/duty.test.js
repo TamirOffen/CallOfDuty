@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { closeDb, initDb } from "../src/db.js";
-import { generateDuty, generatePostDuty } from "./data-factory.js";
+import { closeDb, initDb } from "../src/db/client.js";
+import { generateDuty, generatePostDuty, generateSoldier, getFutureDate } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
 	let fastify;
