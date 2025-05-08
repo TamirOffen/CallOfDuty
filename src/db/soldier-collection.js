@@ -63,6 +63,18 @@ async function putSoldierLimitations(soldierID, newLimitations) {
 	return updatedSoldier;
 }
 
+async function soldierAssignedDuties(soldierID, fromTime = new Date()) {
+	const duties = await getCollection("duties")
+		.find({
+			status: "scheduled",
+			soldiers: soldierID,
+			startTime: { $gte: fromTime },
+		})
+		.toArray();
+
+	return duties;
+}
+
 export {
 	insertSoldier,
 	getSoldier,
@@ -70,4 +82,5 @@ export {
 	deleteSoldier,
 	patchSoldier,
 	putSoldierLimitations,
+	soldierAssignedDuties,
 };

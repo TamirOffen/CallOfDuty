@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { createDuty } from "../models/duty.js";
 import { getCollection } from "./client.js";
+import { sortSoliersAccordingToScore } from "./justice-board-collection.js";
 
 async function insertDuty(dutyData) {
 	const newDuty = createDuty(dutyData);
@@ -68,4 +69,98 @@ async function putConstraints(dutyID, newConstraints) {
 	return updatedDuty;
 }
 
-export { insertDuty, getDuties, getDuty, deleteDuty, patchDuty, putConstraints };
+async function canScheduleDuty(dutyID) {
+	const duty = await getDuty(dutyID);
+
+	const isUnscheduable =
+		duty.status === "scheduled" ||
+		duty.status === "canceled" ||
+		new Date(duty.startTime) < new Date();
+
+	return isUnscheduable ? false : duty;
+}
+
+async function getScheduableSoldiersToDuty(dutyID) {
+	const duty = await getDuty(dutyID);
+	if (!duty) return null;
+
+	const query = {};
+	if (duty.minRank || duty.maxRank) {
+		const rankQuery = {};
+		if (duty.minRank) rankQuery.$gte = duty.minRank;
+		if (duty.maxRank) rankQuery.$lte = duty.maxRank;
+		query["rank.value"] = rankQuery;
+	}
+
+	query.limitations = {
+		$not: {
+			$elemMatch: {
+				$in: duty.constraints,
+			},
+		},
+	};
+
+	const notPossibleSoldiersAgg = await getCollection("duties")
+		.aggregate([
+			{
+				$match: {
+					_id: { $ne: duty._id },
+					$or: [{ startTime: { $lt: duty.endTime }, endTime: { $gt: duty.startTime } }],
+				},
+			},
+			{ $unwind: "$soldiers" },
+			{ $project: { _id: 0, soldierId: "$soldiers" } },
+		])
+		.toArray();
+
+	const notPossibleSoldiers = [
+		...new Set(notPossibleSoldiersAgg.map((soldier) => soldier.soldierId)),
+	];
+
+	query._id = { $nin: notPossibleSoldiers };
+
+	let potentialSoldiers = (
+		await getCollection("soldiers").find(query).project({ _id: 1 }).toArray()
+	).map((soldier) => soldier._id);
+
+	if (potentialSoldiers.length < duty.soldiersRequired) return [];
+
+	potentialSoldiers = await sortSoliersAccordingToScore(potentialSoldiers);
+
+	return potentialSoldiers.slice(0, duty.soldiersRequired);
+}
+
+async function addSoldiersToDuty(dutyID, scheduledSoldiers) {
+	const duty = await getDuty(dutyID);
+	if (!duty) return null;
+
+	const updatedDuty = await getCollection("duties").findOneAndUpdate(
+		{ _id: ObjectId.createFromHexString(dutyID) },
+		{
+			$addToSet: { soldiers: { $each: scheduledSoldiers } },
+			$set: { status: "scheduled" },
+			$push: {
+				statusHistory: {
+					status: "scheduled",
+					date: new Date(),
+				},
+			},
+			$currentDate: { updatedAt: true },
+		},
+		{ returnDocument: "after" },
+	);
+
+	return updatedDuty;
+}
+
+export {
+	insertDuty,
+	getDuties,
+	getDuty,
+	deleteDuty,
+	patchDuty,
+	putConstraints,
+	canScheduleDuty,
+	getScheduableSoldiersToDuty,
+	addSoldiersToDuty,
+};

@@ -36,4 +36,17 @@ async function getJusticeBoardScoreByID(soldierID) {
 	return justiceBoardSoldier.length ? justiceBoardSoldier[0].score : -1;
 }
 
-export { getJusticeBoard, getJusticeBoardScoreByID };
+async function sortSoliersAccordingToScore(soldiers) {
+	const soldierScores = {};
+	for (const soldier of soldiers) {
+		soldierScores[soldier] = await getJusticeBoardScoreByID(soldier);
+	}
+
+	const sortedSoldiers = Object.entries(soldierScores)
+		.sort(([, scoreA], [, scoreB]) => scoreA - scoreB)
+		.map(([id]) => id);
+
+	return sortedSoldiers;
+}
+
+export { getJusticeBoard, getJusticeBoardScoreByID, sortSoliersAccordingToScore };
