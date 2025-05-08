@@ -5,6 +5,7 @@ import {
 	insertSoldier,
 	patchSoldier,
 	putSoldierLimitations,
+	soldierAssignedDuties,
 } from "../db/soldier-collection.js";
 import {
 	deleteSoldierSchema,
@@ -45,14 +46,27 @@ export async function soldierRoutes(fastify) {
 
 	fastify.delete("/:id", { schema: deleteSoldierSchema }, async (request, reply) => {
 		const { id } = request.params;
-		const result = await deleteSoldier(id);
-		if (result.deletedCount === 0) {
-			fastify.log.info({ id }, "Soldier not found!");
-			return reply.status(404).send({ message: `Soldier with ID ${id} not found!` });
-		}
-		request.log.info({ id }, "Soldier deleted");
+		let message;
 
-		return reply.status(204).send({ message: `Soldier with id=${id} deleted succesfully` });
+		const soldierFutureDuties = await soldierAssignedDuties(id);
+
+		if (soldierFutureDuties.length) {
+			message = `Soldier ${id} can't be deleted because he is assigned to a future duty.`;
+			request.log.info(message);
+			return reply.status(400).send({ message: message });
+		}
+
+		const result = await deleteSoldier(id);
+
+		if (!result.deletedCount) {
+			message = `Soldier ${id} not found!`;
+			request.log.info(message);
+			return reply.status(404).send({ message: message });
+		}
+
+		message = `Soldier ${id} deleted successfully`;
+		request.log.info(message);
+		return reply.status(204).send({ message: message });
 	});
 
 	fastify.patch("/:id", { schema: patchSoldierSchema }, async (request, reply) => {
@@ -71,10 +85,20 @@ export async function soldierRoutes(fastify) {
 	fastify.put("/:id/limitations", { schema: putLimitationsSchema }, async (request, reply) => {
 		const { id } = request.params;
 		const newLimitations = request.body;
-		request.log.info({ newLimitations }, "Limits to be added");
+
+		const soldierFutureDuties = await soldierAssignedDuties(id);
+		const dutiesConstraints = [...new Set(soldierFutureDuties.flatMap((duty) => duty.constraints))];
+		const conflicts = dutiesConstraints.filter((lim) => newLimitations.includes(lim));
+		if (conflicts.length) {
+			const message = "Cannot add limits, conflicts with soldier's scheduled duty's constraints";
+			request.log.info({ id }, message);
+
+			return reply.status(400).send({
+				message: message,
+			});
+		}
 
 		const updatedSoldier = await putSoldierLimitations(id, newLimitations);
-
 		if (!updatedSoldier) {
 			request.log.info({ id }, "Soldier not found!");
 
