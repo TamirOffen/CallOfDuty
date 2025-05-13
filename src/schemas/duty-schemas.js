@@ -7,6 +7,7 @@ const soldierIDSchema = z.string().regex(/^[0-9]{7}$/, "Invalid Soldier ID forma
 const nameSchema = z.string().min(3).max(50);
 const locationSchema = z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)]);
 const rankSchema = z.number().min(0).max(6);
+const dutyStatusSchema = z.enum(["unscheduled", "scheduled", "canceled"]);
 const datetimeSchema = z.coerce.date();
 const IDParamsSchema = z.object({ id: ObjectIDStringSchema }).strict();
 
@@ -33,7 +34,7 @@ const dutySchema = z
 		soldiersRequired: z.number().int().min(1),
 		value: z.number().positive(),
 		soldiers: z.array(soldierIDSchema),
-		status: z.string(),
+		status: dutyStatusSchema,
 		statusHistory: z.array(statusSchema),
 		createdAt: datetimeSchema,
 		updatedAt: datetimeSchema,
@@ -135,6 +136,17 @@ const putConstraintsSchema = {
 	},
 };
 
+const scheduleDutySchema = {
+	params: z.object({
+		id: ObjectIDStringSchema,
+	}),
+	response: {
+		200: dutySchema,
+		400: messageSchema,
+		404: messageSchema,
+	},
+};
+
 export {
 	postDutySchema,
 	getDutyByQuerySchema,
@@ -142,4 +154,5 @@ export {
 	deleteDutySchema,
 	patchDutySchema,
 	putConstraintsSchema,
+	scheduleDutySchema,
 };

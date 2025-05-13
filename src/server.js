@@ -1,5 +1,5 @@
 import { createFastifyApp } from "./app.js";
-import { closeDb, initDb } from "./db.js";
+import { closeDb, initDb } from "./db/client.js";
 
 const app = createFastifyApp();
 const port = Number(process.env.PORT ?? 3000);
