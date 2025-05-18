@@ -1,7 +1,9 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createFastifyApp } from "../src/app.js";
-import { closeDb, initDb } from "../src/db.js";
-import { generateDuty, generatePostDuty } from "./data-factory.js";
+import { closeDb, getCollection, initDb } from "../src/db/client.js";
+import { scheduleDutyTaskId } from "../src/scheduler.js";
+import { scheduleAllDuties } from "../src/services/schedule-services.js";
+import { generateDuty, generatePostDuty, generateSoldier, getFutureDate } from "./data-factory.js";
 
 describe("Test Duties Routes", () => {
 	let fastify;
@@ -13,11 +15,11 @@ describe("Test Duties Routes", () => {
 	});
 
 	beforeEach(async () => {
-		await db.collection("duties").drop();
+		await db.dropDatabase();
 	});
 
 	afterEach(async () => {
-		await db.collection("duties").drop();
+		await db.dropDatabase();
 	});
 
 	afterAll(async () => {
@@ -35,7 +37,11 @@ describe("Test Duties Routes", () => {
 			const returnedDuty = response.json();
 
 			expect(response.statusCode).toBe(201);
-			expect(returnedDuty).toMatchObject(dutyPost);
+			expect(returnedDuty).toMatchObject({
+				...dutyPost,
+				startTime: dutyPost.startTime.toISOString(),
+				endTime: dutyPost.endTime.toISOString(),
+			});
 			expect(returnedDuty._id).toBeDefined();
 			expect(returnedDuty.createdAt).toBeDefined();
 			expect(returnedDuty.updatedAt).toBeDefined();
@@ -411,6 +417,453 @@ describe("Test Duties Routes", () => {
 				...new Set([...originalConstraints, ...newConstraints]),
 			]);
 			expect(new Date(updatedDuty.createdAt)).lessThan(new Date(updatedDuty.updatedAt));
+		});
+	});
+
+	describe("PUT /duties/:id/schedule", () => {
+		it("Basic scheduling of 1 soldier to a duty, should succeed and return status 200", async () => {
+			const duty = generateDuty({ soldiersRequired: 1 });
+			const soldier = generateSoldier();
+
+			await Promise.all([
+				db.collection("duties").insertOne(duty),
+				db.collection("soldiers").insertOne(soldier),
+			]);
+
+			const dutyScheduledResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/schedule`,
+			});
+			const dutyScheduled = dutyScheduledResponse.json();
+
+			expect(dutyScheduledResponse.statusCode).toBe(200);
+			expect(dutyScheduled.soldiers).toStrictEqual([soldier._id]);
+			expect(dutyScheduled.status).toBe("scheduled");
+		});
+
+		it("Scheduling of a duty with constraints should take into account soldier limitations ", async () => {
+			const soldier1 = generateSoldier({ limitations: ["gun"] });
+			const soldier2 = generateSoldier({ limitations: ["standing"] });
+			const soldier3 = generateSoldier({ limitations: ["gun", "running"] });
+
+			const duty1 = generateDuty({ soldiersRequired: 1, constraints: ["gun", "running"] });
+			const duty2 = generateDuty({ soldiersRequired: 1, constraints: ["running"] });
+			const duty3 = generateDuty({ soldiersRequired: 1, constraints: ["gun"] });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const duty1ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty1._id.toString()}/schedule`,
+			});
+			const duty1Schedule = duty1ScheduleResponse.json();
+
+			const duty2ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty2._id.toString()}/schedule`,
+			});
+			const duty2Schedule = duty2ScheduleResponse.json();
+
+			const duty3ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty3._id.toString()}/schedule`,
+			});
+
+			expect(duty1ScheduleResponse.statusCode).toBe(200);
+			expect(duty2ScheduleResponse.statusCode).toBe(200);
+			expect(duty3ScheduleResponse.statusCode).toBe(400);
+			expect(duty1Schedule.soldiers).toStrictEqual([soldier2._id]);
+			expect(duty2Schedule.soldiers).toStrictEqual([soldier1._id]);
+		});
+
+		it("Scheduling of a duty should take into account soldier ranks, and duty minRank/maxRank", async () => {
+			const soldier1 = generateSoldier({ rankValue: 3 });
+			const soldier2 = generateSoldier({ rankValue: 5 });
+			const soldier3 = generateSoldier({ rankValue: 2 });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, minRank: 3 });
+			const duty2 = generateDuty({ soldiersRequired: 1, maxRank: 1 });
+			const duty3 = generateDuty({ soldiersRequired: 1, minRank: 1 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const duty1ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty1._id.toString()}/schedule`,
+			});
+			const duty1Schedule = duty1ScheduleResponse.json();
+
+			const duty2ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty2._id.toString()}/schedule`,
+			});
+
+			const duty3ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty3._id.toString()}/schedule`,
+			});
+			const duty3Schedule = duty3ScheduleResponse.json();
+
+			expect(duty1ScheduleResponse.statusCode).toBe(200);
+			expect(duty2ScheduleResponse.statusCode).toBe(400);
+			expect(duty3ScheduleResponse.statusCode).toBe(200);
+			expect(new Set(duty1Schedule.soldiers)).toStrictEqual(new Set([soldier1._id, soldier2._id]));
+			expect(duty3Schedule.soldiers).toStrictEqual([soldier3._id]);
+		});
+
+		it("Scheduling of a duty should take into account duty's soldiersRequired", async () => {
+			const duty1 = generateDuty({
+				soldiersRequired: 2,
+			});
+
+			const duty2 = generateDuty({
+				soldiersRequired: 1,
+			});
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2]),
+				db.collection("soldiers").insertMany([generateSoldier()]),
+			]);
+
+			const duty1ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty1._id.toString()}/schedule`,
+			});
+
+			const duty2ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty2._id.toString()}/schedule`,
+			});
+			const duty2Schedule = duty2ScheduleResponse.json();
+
+			expect(duty1ScheduleResponse.statusCode).toBe(400);
+			expect(duty2ScheduleResponse.statusCode).toBe(200);
+			expect(duty2Schedule.soldiers.length).toBe(1);
+		});
+
+		it("Scheduling of a duty should take into account other duties that overlap in dates", async () => {
+			const soldier1 = generateSoldier();
+			const soldier2 = generateSoldier();
+			const soldier3 = generateSoldier();
+			const soldier4 = generateSoldier();
+
+			const duty1 = generateDuty({
+				soldiersRequired: 2,
+				startTime: getFutureDate(2),
+				endTime: getFutureDate(4),
+				soldiers: [soldier1._id, soldier2._id],
+				status: "scheduled",
+			});
+			const duty2 = generateDuty({
+				soldiersRequired: 1,
+				startTime: getFutureDate(5),
+				endTime: getFutureDate(7),
+				soldiers: [soldier3._id],
+				status: "scheduled",
+			});
+			const duty3 = generateDuty({
+				soldiersRequired: 2,
+				startTime: getFutureDate(3),
+				endTime: getFutureDate(6),
+			});
+			const duty4 = generateDuty({
+				soldiersRequired: 1,
+				startTime: getFutureDate(3),
+				endTime: getFutureDate(6),
+			});
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3, duty4]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3, soldier4]),
+			]);
+
+			const duty3ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty3._id.toString()}/schedule`,
+			});
+
+			const duty4ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty4._id.toString()}/schedule`,
+			});
+			const duty4Schedule = duty4ScheduleResponse.json();
+
+			expect(duty3ScheduleResponse.statusCode).toBe(400);
+			expect(duty4ScheduleResponse.statusCode).toBe(200);
+			expect(duty4Schedule.soldiers).toStrictEqual([soldier4._id]);
+		});
+
+		it("Scheduling a duty should prioritize soldiers with lower justice board scores", async () => {
+			const soldier1 = generateSoldier();
+			const soldier2 = generateSoldier();
+			const soldier3 = generateSoldier();
+
+			const duty1 = generateDuty({
+				value: 5,
+				soldiersRequired: 1,
+				startTime: getFutureDate(2),
+				endTime: getFutureDate(3),
+				soldiers: [soldier1._id],
+				status: "scheduled",
+			});
+			const duty2 = generateDuty({
+				value: 3,
+				soldiersRequired: 1,
+				startTime: getFutureDate(3),
+				endTime: getFutureDate(4),
+				soldiers: [soldier2._id],
+				status: "scheduled",
+			});
+			const duty3 = generateDuty({
+				value: 4,
+				soldiersRequired: 1,
+				startTime: getFutureDate(4),
+				endTime: getFutureDate(5),
+				soldiers: [soldier3._id],
+				status: "scheduled",
+			});
+			const duty4 = generateDuty({
+				value: 4,
+				soldiersRequired: 2,
+				startTime: getFutureDate(5),
+				endTime: getFutureDate(6),
+			});
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3, duty4]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const duty4ScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty4._id.toString()}/schedule`,
+			});
+			const duty4Schedule = duty4ScheduleResponse.json();
+
+			expect(duty4ScheduleResponse.statusCode).toBe(200);
+			expect(new Set(duty4Schedule.soldiers)).toEqual(new Set([soldier2._id, soldier3._id]));
+		});
+
+		it("Should limit the number of soldiers scheduled according to the duty's soldiersRequired", async () => {
+			const duty = generateDuty({
+				soldiersRequired: 2,
+			});
+
+			await Promise.all([
+				db.collection("duties").insertOne(duty),
+				db
+					.collection("soldiers")
+					.insertMany([generateSoldier(), generateSoldier(), generateSoldier()]),
+			]);
+
+			const dutyScheduleResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/schedule`,
+			});
+			const dutySchedule = dutyScheduleResponse.json();
+
+			expect(dutyScheduleResponse.statusCode).toBe(200);
+			expect(dutySchedule.soldiers.length).toEqual(duty.soldiersRequired);
+		});
+	});
+
+	describe("PUT /duties/:id/cancel", () => {
+		it("Should cancel duty", async () => {
+			const soldier = generateSoldier();
+
+			const duty = generateDuty({
+				soldiersRequired: 1,
+				soldiers: [soldier._id],
+				status: "scheduled",
+			});
+
+			await Promise.all([
+				db.collection("soldiers").insertOne(soldier),
+				db.collection("duties").insertOne(duty),
+			]);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+			const canceledDuty = await getCollection("duties").findOne({ _id: duty._id });
+
+			expect(cancelDutyResponse.statusCode).toBe(200);
+			expect(canceledDuty.status).toBe("canceled");
+			expect(canceledDuty.soldiers.length).toBe(0);
+			expect(canceledDuty.statusHistory.at(-1).status).toBe("canceled");
+		});
+
+		it("Should not be able to cancel a duty that is already canceled", async () => {
+			const duty = generateDuty({
+				status: "canceled",
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("Should not be able to cancel a duty that is in the past", async () => {
+			const duty = generateDuty({
+				startTime: getFutureDate(-1),
+			});
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+
+		it("Should return status code 404 if duty does not exist in the database", async () => {
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${"".padStart(24, "0")}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(404);
+		});
+
+		it("Should not be able to cancel an unscheduled duty, and return status 400", async () => {
+			const duty = generateDuty();
+			await db.collection("duties").insertOne(duty);
+
+			const cancelDutyResponse = await fastify.inject({
+				method: "PUT",
+				url: `/duties/${duty._id.toString()}/cancel`,
+			});
+
+			expect(cancelDutyResponse.statusCode).toBe(400);
+		});
+	});
+
+	describe("Automatic Scheduling", () => {
+		it("Should have fastifySchedule plugin registered", () => {
+			expect(fastify.scheduler).toBeDefined();
+		});
+
+		it("Should have scheduleDutiesTask registered with the correct ID", () => {
+			expect(fastify.scheduleDutiesTask).toBeDefined();
+			expect(fastify.scheduleDutiesTask.id).toBe(scheduleDutyTaskId);
+		});
+
+		it("Should schedule duties according to highest duty value", async () => {
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db
+					.collection("soldiers")
+					.insertMany([generateSoldier(), generateSoldier(), generateSoldier()]),
+			]);
+
+			const result = await scheduleAllDuties();
+
+			expect(result[duty1._id]).not.toBeDefined();
+			expect(result[duty2._id].length).toBe(1);
+			expect(result[duty3._id].length).toBe(1);
+		});
+
+		it("Should schedule duties according to highest duty value and soldier rank", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1 });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2, minRank: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5, minRank: 3 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {
+				[duty3._id.toString()]: [soldier2._id],
+				[duty2._id.toString()]: [soldier1._id],
+			};
+
+			const result = await scheduleAllDuties();
+
+			expect(result).toStrictEqual(expectedScheduling);
+		});
+
+		it("Should prioritize duties with higher values", async () => {
+			const duty1 = generateDuty({ soldiersRequired: 1, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([generateSoldier(), generateSoldier()]),
+			]);
+
+			const result = await scheduleAllDuties();
+
+			expect(result[duty1._id]).toBeUndefined();
+			expect(result[duty2._id].length).toBe(1);
+			expect(result[duty3._id].length).toBe(1);
+		});
+
+		it("Should schedule duties according to rank of soldiers", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1 });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, value: 1 });
+			const duty2 = generateDuty({ soldiersRequired: 1, value: 2, minRank: 4 });
+			const duty3 = generateDuty({ soldiersRequired: 1, value: 5, minRank: 3 });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {
+				[duty3._id.toString()]: [soldier2._id],
+				[duty1._id.toString()]: [soldier1._id, soldier3._id],
+			};
+
+			const result = await scheduleAllDuties();
+
+			expect(new Set(result[duty1._id])).toEqual(new Set(expectedScheduling[duty1._id]));
+			expect(new Set(result[duty3._id])).toEqual(new Set(expectedScheduling[duty3._id]));
+		});
+
+		it("Should schedule no duties when none can be scheduled", async () => {
+			const soldier1 = generateSoldier({ rankValue: 2 });
+			const soldier2 = generateSoldier({ rankValue: 3 });
+			const soldier3 = generateSoldier({ rankValue: 1, limitations: ["gun"] });
+
+			const duty1 = generateDuty({ soldiersRequired: 2, minRank: 5, constraints: ["gun"] });
+			const duty2 = generateDuty({ soldiersRequired: 1, minRank: 4, constraints: ["gun"] });
+			const duty3 = generateDuty({ soldiersRequired: 3, constraints: ["gun"] });
+
+			await Promise.all([
+				db.collection("duties").insertMany([duty1, duty2, duty3]),
+				db.collection("soldiers").insertMany([soldier1, soldier2, soldier3]),
+			]);
+
+			const expectedScheduling = {};
+
+			const result = await scheduleAllDuties();
+
+			expect(result).toStrictEqual(expectedScheduling);
 		});
 	});
 });

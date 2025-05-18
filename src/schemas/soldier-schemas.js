@@ -132,6 +132,7 @@ const deleteSoldierSchema = {
 	response: {
 		204: messageSchema,
 		404: messageSchema,
+		400: messageSchema,
 	},
 };
 

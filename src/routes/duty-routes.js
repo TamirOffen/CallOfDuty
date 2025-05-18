@@ -1,5 +1,13 @@
-import { ObjectId } from "mongodb";
-import { getCollection } from "../db.js";
+import {
+	addConstraints,
+	addSoldiersToDuty,
+	deleteDutyByID,
+	getDuties,
+	getDutyByID,
+	insertDuty,
+	updateDuty,
+	updateDutyToCanceled,
+} from "../db/duty-collection.js";
 import { createDuty } from "../models/duty.js";
 import {
 	deleteDutySchema,
@@ -8,12 +16,18 @@ import {
 	patchDutySchema,
 	postDutySchema,
 	putConstraintsSchema,
+	scheduleDutySchema,
 } from "../schemas/duty-schemas.js";
+import {
+	canCancelDuty,
+	canScheduleDuty,
+	getScheduableSoldiersToDuty,
+} from "../services/schedule-services.js";
 
 export async function dutyRoutes(fastify) {
 	fastify.post("/", { schema: postDutySchema }, async (request, reply) => {
 		const newDuty = createDuty(request.body);
-		await getCollection("duties").insertOne(newDuty);
+		await insertDuty(newDuty);
 		request.log.info({ duty: newDuty }, "Duty created successfully");
 
 		return reply.code(201).send(newDuty);
@@ -23,10 +37,9 @@ export async function dutyRoutes(fastify) {
 		const { constraints, ...otherProps } = request.query;
 		const filter = otherProps;
 		if (constraints?.length) filter.constraints = { $all: constraints.split(",") };
-		request.log.info({ filter }, "Searching for duties by query");
 
-		const duties =
-			Object.keys(filter).length > 0 ? await getCollection("duties").find(filter).toArray() : [];
+		const duties = await getDuties(filter);
+
 		if (!duties.length) request.log.info("No duties found");
 		else
 			request.log.info({ count: duties.length, dutyIDs: duties.map((d) => d._id) }, "Duties found");
@@ -36,9 +49,7 @@ export async function dutyRoutes(fastify) {
 
 	fastify.get("/:id", { schema: getDutyByIDSchema }, async (request, reply) => {
 		const { id } = request.params;
-		request.log.info({ id }, "Looking for duty by ID");
-
-		const duty = await getCollection("duties").findOne({ _id: ObjectId.createFromHexString(id) });
+		const duty = await getDutyByID(id);
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -52,8 +63,7 @@ export async function dutyRoutes(fastify) {
 
 	fastify.delete("/:id", { schema: deleteDutySchema }, async (request, reply) => {
 		const { id } = request.params;
-		const objectID = ObjectId.createFromHexString(id);
-		const duty = await getCollection("duties").findOne({ _id: objectID });
+		const duty = await getDutyByID(id);
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -64,16 +74,14 @@ export async function dutyRoutes(fastify) {
 			return reply.status(400).send({ message: "Scheduled duties cannot be deleted!" });
 		}
 
-		await getCollection("duties").deleteOne({ _id: objectID });
-		request.log.info({ id }, "Duty deleted");
+		await deleteDutyByID(id);
 
 		return reply.status(204).send({ message: `Duty with ID ${id} deleted succesfully` });
 	});
 
 	fastify.patch("/:id", { schema: patchDutySchema }, async (request, reply) => {
 		const { id } = request.params;
-		const objectID = ObjectId.createFromHexString(id);
-		const duty = await getCollection("duties").findOne({ _id: objectID });
+		const duty = await getDutyByID(id);
 
 		if (!duty) {
 			request.log.info({ id }, "Duty not found!");
@@ -93,11 +101,8 @@ export async function dutyRoutes(fastify) {
 			return reply.status(400).send({ message: "Cannot update scheduled duty" });
 		}
 
-		const updatedDuty = await getCollection("duties").findOneAndUpdate(
-			{ _id: objectID },
-			{ $set: request.body, $currentDate: { updatedAt: true } },
-			{ returnDocument: "after" },
-		);
+		const updatedDuty = await updateDuty(id, request.body);
+
 		request.log.info({ updatedDuty }, "Duty updated");
 
 		return reply.status(200).send(updatedDuty);
@@ -105,17 +110,7 @@ export async function dutyRoutes(fastify) {
 
 	fastify.put("/:id/constraints", { schema: putConstraintsSchema }, async (request, reply) => {
 		const { id } = request.params;
-		const newConstraints = request.body;
-		request.log.info({ newConstraints }, "constraints to be added");
-
-		const updatedDuty = await getCollection("duties").findOneAndUpdate(
-			{ _id: ObjectId.createFromHexString(id) },
-			{
-				$addToSet: { constraints: { $each: newConstraints } },
-				$currentDate: { updatedAt: true },
-			},
-			{ returnDocument: "after" },
-		);
+		const updatedDuty = await addConstraints(id, request.body);
 
 		if (!updatedDuty) {
 			return reply.status(404).send({
@@ -125,5 +120,58 @@ export async function dutyRoutes(fastify) {
 		request.log.info({ updatedDuty }, "Updated duty");
 
 		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/schedule", { schema: scheduleDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const duty = await getDutyByID(id);
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		const scheduableDuty = canScheduleDuty(duty);
+		if (!scheduableDuty) {
+			request.log.info({ id }, "Cannot schedule duty");
+
+			return reply.status(400).send({ message: "Cannot schedule duty" });
+		}
+
+		const availableSoldiersIDs = await getScheduableSoldiersToDuty(duty);
+		if (availableSoldiersIDs.length < duty.soldiersRequired) {
+			request.log.info(
+				{ requiredCount: duty.soldiersRequired },
+				{ availableSoldiersCount: availableSoldiersIDs.length },
+				"Not enough soldiers can be scheduled",
+			);
+
+			return reply.status(400).send({ message: "Not enough soldiers can be scheduled" });
+		}
+		const updatedDuty = await addSoldiersToDuty(id, availableSoldiersIDs);
+
+		return reply.status(200).send(updatedDuty);
+	});
+
+	fastify.put("/:id/cancel", { schema: scheduleDutySchema }, async (request, reply) => {
+		const { id } = request.params;
+		const duty = await getDutyByID(id);
+
+		if (!duty) {
+			request.log.info({ id }, "Duty not found!");
+			return reply.status(404).send({ message: `Duty not found with id ${id}` });
+		}
+
+		const cancelableDuty = canCancelDuty(duty);
+
+		if (!cancelableDuty) {
+			request.log.info({ id }, "Cannot cancel duty");
+
+			return reply.status(400).send({ message: "Cannot cancel duty" });
+		}
+
+		const canceledDuty = await updateDutyToCanceled(id);
+
+		return reply.status(200).send(canceledDuty);
 	});
 }

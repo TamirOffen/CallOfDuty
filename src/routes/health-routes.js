@@ -1,4 +1,4 @@
-import { getDB } from "../db.js";
+import { getDB } from "../db/client.js";
 
 export async function healthRoutes(fastify) {
 	fastify.get("/", async (_request, reply) => reply.send({ status: "ok" }));
