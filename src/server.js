@@ -4,11 +4,16 @@ import { closeDb, initDb } from "./db/client.js";
 const app = createFastifyApp();
 const port = Number(process.env.PORT ?? 3000);
 
-process.on("SIGINT", async () => {
+const gracefulShutdown = async () => {
 	app.log.info("Shutting down server...");
 	await app.close();
 	await closeDb();
 	process.exit(0);
+};
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
+
 process.on("unhandledRejection", (reason, promise) => {
 	console.log("Unhandled Rejection at:", promise, "reason:", reason);
 	process.exit(1);
