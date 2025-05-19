@@ -2,6 +2,7 @@ import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySchedule from "@fastify/schedule";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
+import fastifyUnderPressure from "@fastify/under-pressure";
 import Fastify from "fastify";
 import {
 	jsonSchemaTransform,
@@ -30,6 +31,15 @@ export async function createFastifyApp() {
 		fastify.register(fastifyRateLimit, {
 			max: 100,
 			timeWindow: "1 minute",
+		});
+
+		fastify.register(fastifyUnderPressure, {
+			maxEventLoopDelay: 1000,
+			maxHeapUsedBytes: 100000000,
+			maxRssBytes: 100000000,
+			maxEventLoopUtilization: 0.98,
+			message: "Under pressure!",
+			retryAfter: 50,
 		});
 	}
 
