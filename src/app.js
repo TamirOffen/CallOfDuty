@@ -7,11 +7,12 @@ import { healthRoutes } from "./routes/health-routes.js";
 import { justiceBoardRoute } from "./routes/justice-board-route.js";
 import { soldierRoutes } from "./routes/soldier-routes.js";
 import { schedulerPlugin } from "./scheduler.js";
+import { env } from "./schemas/env-schema.js";
 
 export function createFastifyApp() {
 	const fastify = Fastify({
 		logger: {
-			level: process.env.NODE_ENV === "test" ? "silent" : "info",
+			level: env.NODE_ENV === "test" ? "silent" : "info",
 		},
 	});
 

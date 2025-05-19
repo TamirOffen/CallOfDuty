@@ -1,8 +1,9 @@
 import { createFastifyApp } from "./app.js";
 import { closeDb, initDb } from "./db/client.js";
+import { env } from "./schemas/env-schema.js";
 
-const app = createFastifyApp();
-const port = Number(process.env.PORT ?? 3000);
+const app = await createFastifyApp();
+const port = env.PORT ?? 3000;
 
 const gracefulShutdown = async () => {
 	app.log.info("Shutting down server...");
