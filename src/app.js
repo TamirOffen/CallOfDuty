@@ -1,3 +1,4 @@
+import fastifyRateLimit from "@fastify/rate-limit";
 import fastifySchedule from "@fastify/schedule";
 import fastifySwagger from "@fastify/swagger";
 import fastifySwaggerUi from "@fastify/swagger-ui";
@@ -25,6 +26,11 @@ export async function createFastifyApp() {
 
 	if (env.NODE_ENV !== "test") {
 		fastify.addHook("onRequest", basicAuthenticator);
+
+		fastify.register(fastifyRateLimit, {
+			max: 100,
+			timeWindow: "1 minute",
+		});
 	}
 
 	fastify.register(fastifySwagger, {
