@@ -1,5 +1,5 @@
-import { createDuty } from "../src/models/duty";
-import { createSoldier } from "../src/models/soldier";
+import { createDuty } from "../src/models/duty.js";
+import { createSoldier } from "../src/models/soldier.js";
 
 function generatePostSoldier(soldierParams = {}) {
 	const {
