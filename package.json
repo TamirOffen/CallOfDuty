@@ -27,6 +27,7 @@
 		"@fastify/schedule": "^6.0.0",
 		"@fastify/swagger": "^9.5.1",
 		"@fastify/swagger-ui": "^5.2.2",
+		"Buffer": "^0.0.0",
 		"fastify": "^5.2.1",
 		"fastify-plugin": "^5.0.1",
 		"fastify-type-provider-zod": "^4.0.2",

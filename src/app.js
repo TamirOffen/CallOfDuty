@@ -8,6 +8,7 @@ import {
 	validatorCompiler,
 } from "fastify-type-provider-zod";
 import { SimpleIntervalJob } from "toad-scheduler";
+import { basicAuthenticator } from "./authentication.js";
 import { dutyRoutes } from "./routes/duty-routes.js";
 import { healthRoutes } from "./routes/health-routes.js";
 import { justiceBoardRoute } from "./routes/justice-board-route.js";
@@ -15,12 +16,17 @@ import { soldierRoutes } from "./routes/soldier-routes.js";
 import { schedulerPlugin } from "./scheduler.js";
 import { env } from "./schemas/env-schema.js";
 
-export function createFastifyApp() {
+export async function createFastifyApp() {
 	const fastify = Fastify({
 		logger: {
 			level: env.NODE_ENV === "test" ? "silent" : "info",
 		},
 	});
+
+	if (env.NODE_ENV !== "test") {
+		fastify.addHook("onRequest", basicAuthenticator);
+	}
+
 	fastify.register(fastifySwagger, {
 		openapi: {
 			info: {
