@@ -1,6 +1,12 @@
 import fastifySchedule from "@fastify/schedule";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
 import Fastify from "fastify";
-import { serializerCompiler, validatorCompiler } from "fastify-type-provider-zod";
+import {
+	jsonSchemaTransform,
+	serializerCompiler,
+	validatorCompiler,
+} from "fastify-type-provider-zod";
 import { SimpleIntervalJob } from "toad-scheduler";
 import { dutyRoutes } from "./routes/duty-routes.js";
 import { healthRoutes } from "./routes/health-routes.js";
@@ -14,6 +20,23 @@ export function createFastifyApp() {
 		logger: {
 			level: env.NODE_ENV === "test" ? "silent" : "info",
 		},
+	});
+	fastify.register(fastifySwagger, {
+		openapi: {
+			info: {
+				title: "Test swagger",
+				description: "testing the fastify swagger api",
+				version: "0.1.0",
+			},
+			servers: [],
+		},
+		hideUntagged: false,
+		exposeRoute: true,
+		transform: jsonSchemaTransform,
+	});
+
+	fastify.register(fastifySwaggerUi, {
+		routePrefix: "/documentation",
 	});
 
 	fastify.register(healthRoutes, { prefix: "/health" });
@@ -30,10 +53,12 @@ export function createFastifyApp() {
 	fastify.ready(() => {
 		fastify.scheduler.addSimpleIntervalJob(
 			new SimpleIntervalJob(
-				{ minutes: Number(process.env.AUTO_SCHEDULE_INTERVAL) || 5 },
+				{ minutes: env.AUTO_SCHEDULE_INTERVAL || 5 },
 				fastify.scheduleDutiesTask,
 			),
 		);
+
+		fastify.swagger();
 	});
 
 	return fastify;
