@@ -1,14 +1,28 @@
 import { createFastifyApp } from "./app.js";
 import { closeDb, initDb } from "./db/client.js";
+import { env } from "./schemas/env-schema.js";
 
-const app = createFastifyApp();
-const port = Number(process.env.PORT ?? 3000);
+const app = await createFastifyApp();
+const port = env.PORT ?? 3000;
 
-process.on("SIGINT", async () => {
+const gracefulShutdown = async () => {
 	app.log.info("Shutting down server...");
 	await app.close();
 	await closeDb();
 	process.exit(0);
+};
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
+
+process.on("unhandledRejection", (reason, promise) => {
+	console.log("Unhandled Rejection at:", promise, "reason:", reason);
+	process.exit(1);
+});
+
+process.on("uncaughtException", (err) => {
+	console.error("Uncaught Exception:", err);
+	process.exit(1);
 });
 
 const startServer = async () => {
